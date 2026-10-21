@@ -1,14 +1,14 @@
 """
-Streamlit Frontend Application for AI-Powered Skincare Routine Checker
-Features:
-- Responsive, premium UI with curated styling and card designs
-- Skin profile customizer with concern, sensitivity, avoid-list, and budget filters
-- Direct integration with FastAPI backend (GET /model-info, POST /check-routine, POST /predict)
-- Morning & Evening Routine visualizers with ordered steps
-- Ingredient Explorer & Compatibility Caution panels
-- Model Evaluation, Metrics, and MLOps Lineage Dashboard
-- Downloadable Routine Report (Markdown/Text)
-- Session assessment history with one-click clear option
+Streamlit Frontend Application — Skincare Routine Ingredient Checker
+=====================================================================
+Five primary sections:
+1. Routine Conflict Checker  : Search/add products, detect active conflicts & duplicate actives.
+2. Product Catalog Search    : Full-text & fuzzy search with ingredient provenance view.
+3. Ingredient Analysis       : Paste raw list → parse → normalize synonyms → classify functions → show concentrations.
+4. Packaging Label OCR       : Upload photo → extract text → edit → add to routine.
+5. MLOps & Drift Telemetry   : Model versions, MLflow runs, evaluation metrics, drift indicators, latency.
+
+All predictions come from the live FastAPI backend. No hardcoded example outputs.
 """
 
 import os
@@ -16,430 +16,979 @@ import json
 import requests
 import streamlit as st
 import pandas as pd
+from typing import List, Dict, Any
 
-# Page Configuration
+# ─────────────────────────── Page Config ───────────────────────────
 st.set_page_config(
-    page_title="AI-Powered Skincare Routine Checker",
-    page_icon="✨",
+    page_title="Skincare Routine Ingredient Checker",
+    page_icon="🧴",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Backend URL configuration
 API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8000")
 
-# Custom CSS for rich aesthetics and clean typography
+# ─────────────────────────── CSS ───────────────────────────
 st.markdown("""
 <style>
-    .main-header {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        font-size: 2.2rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #3b82f6 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem;
-    }
-    .sub-header {
-        color: #64748b;
-        font-size: 1.05rem;
-        margin-bottom: 1.5rem;
-    }
-    .metric-card {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 15px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .routine-step {
-        background: #ffffff;
-        border-left: 4px solid #10b981;
-        border-radius: 8px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-        border-top: 1px solid #f1f5f9;
-        border-right: 1px solid #f1f5f9;
-        border-bottom: 1px solid #f1f5f9;
-    }
-    .caution-box {
-        background-color: #fffbeb;
-        border-left: 4px solid #f59e0b;
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-    }
-    .warning-box {
-        background-color: #fef2f2;
-        border-left: 4px solid #ef4444;
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-    }
-    .disclaimer-banner {
-        background-color: #f1f5f9;
-        border-radius: 8px;
-        padding: 14px;
-        font-size: 0.85rem;
-        color: #475569;
-        margin-top: 25px;
-    }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+
+.header-title {
+    font-size: 2.05rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #0369a1 0%, #0d9488 60%, #16a34a 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.15rem;
+}
+.header-subtitle {
+    color: #475569;
+    font-size: 1.0rem;
+    margin-bottom: 1.2rem;
+}
+.status-safe {
+    background: #dcfce7; color: #166534;
+    padding: 6px 14px; border-radius: 20px;
+    font-weight: 600; display: inline-block;
+}
+.status-conflict {
+    background: #fee2e2; color: #991b1b;
+    padding: 6px 14px; border-radius: 20px;
+    font-weight: 600; display: inline-block;
+}
+.status-duplicate {
+    background: #fef9c3; color: #854d0e;
+    padding: 6px 14px; border-radius: 20px;
+    font-weight: 600; display: inline-block;
+}
+.status-avoid {
+    background: #fce7f3; color: #9d174d;
+    padding: 6px 14px; border-radius: 20px;
+    font-weight: 600; display: inline-block;
+}
+.warning-card {
+    background: #fff1f2; border-left: 4px solid #f43f5e;
+    padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;
+}
+.caution-card {
+    background: #fffbeb; border-left: 4px solid #f59e0b;
+    padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;
+}
+.info-card {
+    background: #eff6ff; border-left: 4px solid #3b82f6;
+    padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;
+}
+.product-card {
+    background: #ffffff; border: 1px solid #e2e8f0;
+    border-radius: 10px; padding: 14px; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.disclaimer-box {
+    background: #f8fafc; border-radius: 8px;
+    border: 1px solid #e2e8f0; padding: 14px;
+    font-size: 0.83rem; color: #64748b; margin-top: 24px;
+}
+.metric-block {
+    background: #f0f9ff; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 8px;
+    border-left: 3px solid #0284c7;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize Session State
-if "history" not in st.session_state:
-    st.session_state.history = []
-if "current_assessment" not in st.session_state:
-    st.session_state.current_assessment = None
+# ─────────────────────────── Session State ───────────────────────────
+if "routine_products" not in st.session_state:
+    st.session_state.routine_products = []
+if "last_analysis" not in st.session_state:
+    st.session_state.last_analysis = None
+if "ocr_text_buffer" not in st.session_state:
+    st.session_state.ocr_text_buffer = ""
+if "parsed_ingredient_results" not in st.session_state:
+    st.session_state.parsed_ingredient_results = None
 
-# Sidebar: Navigation & API Health
-with st.sidebar:
-    st.title("✨ Skincare AI")
-    st.markdown("**MLOps Routine Intelligence**")
-
-    # API Health Indicator
+# ─────────────────────────── Helpers ───────────────────────────
+def api_get(endpoint: str, params: dict = None, timeout: int = 5):
     try:
-        health_resp = requests.get(f"{API_URL}/ready", timeout=3)
-        if health_resp.status_code == 200:
-            st.success("🟢 API Service: Online & Ready", icon="✅")
-        else:
-            st.warning("🟡 API Service: Degraded", icon="⚠️")
+        r = requests.get(f"{API_URL}{endpoint}", params=params, timeout=timeout)
+        return r.json() if r.status_code == 200 else None
     except Exception:
-        st.error(f"🔴 API Service: Offline ({API_URL})", icon="🚨")
+        return None
 
-    menu = st.radio(
+
+def api_post(endpoint: str, payload: dict, timeout: int = 10):
+    try:
+        r = requests.post(f"{API_URL}{endpoint}", json=payload, timeout=timeout)
+        if r.status_code == 200:
+            return r.json()
+        return {"error": r.text}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def render_status_badge(status: str):
+    if status == "POTENTIAL_CONFLICT":
+        st.markdown('<span class="status-conflict">⚠️ POTENTIAL CONFLICT DETECTED</span>', unsafe_allow_html=True)
+    elif status == "DUPLICATE_ACTIVE":
+        st.markdown('<span class="status-duplicate">🟡 DUPLICATE ACTIVE IDENTIFIED</span>', unsafe_allow_html=True)
+    elif status == "USER_AVOID_LIST_MATCH":
+        st.markdown('<span class="status-avoid">🚫 AVOID-LIST MATCH</span>', unsafe_allow_html=True)
+    elif status == "INSUFFICIENT_INFORMATION":
+        st.markdown('<span class="status-duplicate">ℹ️ INSUFFICIENT INFORMATION</span>', unsafe_allow_html=True)
+    else:
+        st.markdown('<span class="status-safe">✅ NO CONFIGURED CONFLICT FOUND</span>', unsafe_allow_html=True)
+
+
+def function_color(func: str) -> str:
+    palette = {
+        "Humectant": "🔵",
+        "Emollient": "🟢",
+        "Occlusive": "🟤",
+        "Exfoliating agent": "🔴",
+        "Antioxidant": "🟠",
+        "Surfactant": "🟣",
+        "Soothing / Anti-inflammatory": "🩵",
+        "Sunscreen active": "🌕",
+    }
+    return palette.get(func, "⚪")
+
+
+# ─────────────────────────── Sidebar ───────────────────────────
+with st.sidebar:
+    st.title("🧴 Skincare Routine Checker")
+    st.caption("ML-Powered Ingredient Analysis & MLOps")
+
+    # API Status
+    try:
+        r_ready = requests.get(f"{API_URL}/ready", timeout=2)
+        if r_ready.status_code == 200:
+            st.success("🟢 API: Online", icon="✅")
+        else:
+            st.warning("🟡 API: Degraded", icon="⚠️")
+    except Exception:
+        st.error(f"🔴 API Offline — start backend with:\nuvicorn backend.app.main:app --port 8000", icon="🚨")
+
+    st.markdown("---")
+
+    nav_option = st.radio(
         "Navigation",
-        ["Routine Builder & Checker", "Product Category Classifier", "Model & MLOps Lineage", "Assessment History"]
+        [
+            "🔍 Routine Conflict Checker",
+            "📦 Product Catalog Search",
+            "🧪 Ingredient Analysis",
+            "📸 Packaging Label OCR",
+            "📊 MLOps & Drift Telemetry"
+        ],
+        label_visibility="collapsed"
     )
 
     st.markdown("---")
-    st.markdown("### 🎓 Academic MLOps Demo")
-    st.caption("Trained on real Sephora & INCI cosmetics data. Integrates MLflow tracking, Docker compose, and automated gating.")
+    st.markdown("### 🛒 Routine Basket")
+    n = len(st.session_state.routine_products)
+    st.write(f"**{n}** product{'s' if n != 1 else ''} staged")
+    if n > 0:
+        for idx, item in enumerate(st.session_state.routine_products):
+            c1, c2 = st.columns([5, 1])
+            c1.caption(f"{idx+1}. {item['brand']} — {item['name']}")
+            if c2.button("✕", key=f"sb_del_{idx}"):
+                st.session_state.routine_products.pop(idx)
+                st.session_state.last_analysis = None
+                st.rerun()
+    if st.button("🗑️ Clear Basket", use_container_width=True):
+        st.session_state.routine_products = []
+        st.session_state.last_analysis = None
+        st.rerun()
 
-# ----------------- VIEW 1: ROUTINE BUILDER & CHECKER -----------------
-if menu == "Routine Builder & Checker":
-    st.markdown('<div class="main-header">AI-Powered Skincare Routine Checker</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Personalized regimen assembly with evidence-reviewed ingredient safety & compatibility checks.</div>', unsafe_allow_html=True)
+# ══════════════════════════════════════════════════════════════════════
+# VIEW 1 — ROUTINE CONFLICT CHECKER
+# ══════════════════════════════════════════════════════════════════════
+if nav_option == "🔍 Routine Conflict Checker":
+    st.markdown('<div class="header-title">Skincare Routine Conflict Checker</div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-subtitle">Add products, detect active conflicts, duplicate actives, and download an explained report.</div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns([1, 2])
+    col_left, col_right = st.columns([1, 1.45])
 
-    with col1:
-        st.subheader("Your Skin Profile")
-        with st.form("routine_form"):
-            skin_type = st.selectbox(
-                "Skin Type",
-                ["normal", "oily", "dry", "combination", "unknown"],
-                index=1
-            )
-            concerns = st.multiselect(
-                "Primary Concerns",
-                ["dryness", "oiliness", "uneven texture", "appearance of blemishes"],
-                default=["oiliness", "appearance of blemishes"]
-            )
-            sensitivity = st.select_slider(
-                "Skin Sensitivity",
-                options=["low", "medium", "high"],
-                value="low"
-            )
-            avoid_input = st.text_input(
-                "Ingredients / Tags to Avoid (comma-separated)",
-                placeholder="e.g. fragrance, alcohol, parabens"
-            )
-            preferred_routine = st.selectbox(
-                "Preferred Routine",
-                ["both", "morning", "evening"]
-            )
-            budget = st.number_input(
-                "Max Budget per Item (USD, 0 for any)",
-                min_value=0.0,
-                max_value=400.0,
-                value=45.0,
-                step=5.0
-            )
+    # ── Left: Product staging ──
+    with col_left:
+        st.subheader("1. Stage Products")
+        add_mode = st.radio("Add via", ["Search Catalog", "Manual Paste"], horizontal=True)
 
-            submit_btn = st.form_submit_button("🔍 Generate & Check Routine", use_container_width=True)
+        if add_mode == "Search Catalog":
+            search_query = st.text_input("Product name or keyword", placeholder="e.g. CeraVe Moisturizer, Retinol")
+            brand_filter = st.text_input("Brand filter (optional)", placeholder="e.g. The Ordinary")
 
-        if submit_btn:
-            avoid_list = [x.strip() for x in avoid_input.split(",") if x.strip()]
-            payload = {
-                "profile": {
-                    "skin_type": skin_type,
-                    "concerns": concerns,
-                    "sensitivity": sensitivity,
-                    "avoid_ingredients": avoid_list,
-                    "preferred_routine": preferred_routine,
-                    "max_budget": budget if budget > 0 else None
-                }
-            }
+            if search_query:
+                with st.spinner("Searching..."):
+                    params = {"q": search_query, "limit": 8}
+                    if brand_filter.strip():
+                        params["brand"] = brand_filter.strip()
+                    resp = api_get("/products/search", params=params)
 
-            with st.spinner("Calling inference service & evaluating ingredient rules..."):
-                try:
-                    resp = requests.post(f"{API_URL}/check-routine", json=payload, timeout=10)
-                    if resp.status_code == 200:
-                        assessment = resp.json()
-                        st.session_state.current_assessment = assessment
-                        st.session_state.history.append({
-                            "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "skin_type": skin_type,
-                            "concerns": ", ".join(concerns),
-                            "routine": preferred_routine,
-                            "assessment": assessment
+                if resp is None:
+                    st.error("Search failed — backend may be offline.")
+                elif not resp.get("results"):
+                    st.info("No matching products found. Try a different term or use Manual Paste.")
+                else:
+                    st.write(f"Found **{resp['count']}** match(es):")
+                    for prod in resp["results"]:
+                        has_ing = prod.get("has_ingredients", False)
+                        ing_snippet = (prod.get("ingredients_raw") or "")[:110]
+                        with st.expander(
+                            f"{'✅' if has_ing else '⚠️'} [{prod['match_type']} {prod['match_score']}%] "
+                            f"{prod['brand']} — {prod['name']} ({prod['category']})"
+                        ):
+                            col_a, col_b = st.columns(2)
+                            col_a.metric("Rating", f"⭐ {prod['rating']}")
+                            col_b.metric("Price", f"${prod['price']:.2f}")
+                            if has_ing:
+                                st.caption(f"Ingredients preview: {ing_snippet}…")
+                            else:
+                                st.warning("No ingredient list on file for this product.")
+                            if st.button("➕ Add to Routine", key=f"add_{prod['product_id']}"):
+                                st.session_state.routine_products.append({
+                                    "product_id": prod["product_id"],
+                                    "name": prod["name"],
+                                    "brand": prod["brand"],
+                                    "category": prod["category"],
+                                    "price": prod["price"],
+                                    "rating": prod["rating"],
+                                    "ingredients": prod.get("ingredients_raw"),
+                                    "source": prod["source"]
+                                })
+                                st.success(f"Added {prod['name']} to routine!")
+                                st.rerun()
+
+        else:  # Manual Paste
+            with st.form("manual_add_form"):
+                m_brand = st.text_input("Brand", value="The Ordinary")
+                m_name = st.text_input("Product Name", value="Niacinamide 10% + Zinc 1%")
+                m_cat = st.selectbox("Category", ["Cleanser", "Treatment", "Moisturizer", "Eye cream", "Sun protect", "Face Mask"])
+                m_ings = st.text_area(
+                    "INCI Ingredient List (comma-separated)",
+                    value="Aqua (Water), Niacinamide 10%, Pentylene Glycol, Zinc PCA 1%, Dimethyl Isosorbide, Tamarindus Indica Seed Gum, Xanthan gum, Isoceteth-20, Ethoxydiglycol, Phenoxyethanol, Chlorphenesin.",
+                    height=120
+                )
+                if st.form_submit_button("Add Custom Product"):
+                    if m_ings.strip():
+                        st.session_state.routine_products.append({
+                            "name": m_name,
+                            "brand": m_brand,
+                            "category": m_cat,
+                            "price": 10.0,
+                            "rating": 4.5,
+                            "ingredients": m_ings,
+                            "source": "Manual User Input"
                         })
-                        st.success("Routine successfully compiled!")
+                        st.success(f"Added {m_name}!")
+                        st.rerun()
                     else:
-                        st.error(f"Backend API error: {resp.text}")
-                except Exception as e:
-                    st.error(f"Could not connect to FastAPI server at {API_URL}: {e}")
+                        st.error("Ingredient list cannot be empty.")
 
-    with col2:
-        if st.session_state.current_assessment:
-            res = st.session_state.current_assessment
+        # ── Staged products list ──
+        st.markdown("---")
+        st.subheader("Staged Products")
+        if not st.session_state.routine_products:
+            st.info("No products added yet. Search the catalog or paste ingredients above.")
+        else:
+            for idx, item in enumerate(st.session_state.routine_products):
+                c1, c2 = st.columns([5, 1])
+                with c1:
+                    ing_ok = bool(item.get("ingredients"))
+                    st.markdown(
+                        f"**{idx+1}. [{item['category']}]** {item['brand']} — {item['name']}"
+                        f" {'✅' if ing_ok else '⚠️ No ingredients'}"
+                    )
+                with c2:
+                    if st.button("❌", key=f"del_{idx}"):
+                        st.session_state.routine_products.pop(idx)
+                        st.session_state.last_analysis = None
+                        st.rerun()
 
-            # Tabs for viewing different aspects of the routine
-            tab_am, tab_pm, tab_safety, tab_export = st.tabs([
-                "☀️ Morning Regimen", "🌙 Evening Regimen", "⚠️ Safety & Compatibility", "📄 Export Report"
+        st.markdown("---")
+        st.subheader("2. Routine Preferences")
+        c_time = st.selectbox("Routine Time", ["both", "morning", "evening"])
+        c_avoid = st.text_input("Ingredients to Avoid (comma-separated)", placeholder="e.g. fragrance, parabens, alcohol")
+        c_concerns = st.multiselect(
+            "Target Skin Concerns",
+            ["dryness", "oiliness", "uneven texture", "appearance of blemishes"]
+        )
+
+        run_btn = st.button("🚀 Analyze Routine Compatibility", type="primary", use_container_width=True)
+
+        if run_btn:
+            if not st.session_state.routine_products:
+                st.error("Add at least one product before running analysis.")
+            else:
+                avoid_tokens = [x.strip() for x in c_avoid.split(",") if x.strip()]
+                payload = {
+                    "products": st.session_state.routine_products,
+                    "routine_time": c_time,
+                    "avoid_ingredients": avoid_tokens,
+                    "user_concerns": c_concerns
+                }
+                with st.spinner("Analyzing cross-product active interactions & classifying ingredient functions…"):
+                    resp = api_post("/check-routine", payload, timeout=20)
+                    if resp and "error" not in resp:
+                        st.session_state.last_analysis = resp
+                        st.success("Analysis complete!")
+                    else:
+                        st.error(f"Analysis failed: {resp.get('error', 'Unknown error')}")
+
+    # ── Right: Results ──
+    with col_right:
+        st.subheader("3. Analysis Results")
+
+        if not st.session_state.last_analysis:
+            st.info("👈 Add products and click **Analyze Routine Compatibility** to see results.")
+        else:
+            res = st.session_state.last_analysis
+            status = res.get("primary_status", "NO_CONFIGURED_CONFLICT_FOUND")
+            render_status_badge(status)
+            st.write(f"Analyzed **{res.get('total_products', 0)}** formulations with **{sum(p['ingredient_count'] for p in res.get('products_analyzed', []))}** total ingredients.")
+
+            tab_conflicts, tab_products, tab_sequence, tab_export = st.tabs([
+                "⚠️ Conflicts & Actives", "🧴 Product Ingredients", "⏱️ Sequencing", "📄 Export Report"
             ])
 
-            with tab_am:
-                if res.get("morning_routine"):
-                    for step_idx, item in enumerate(res["morning_routine"], 1):
-                        st.markdown(f"""
-                        <div class="routine-step">
-                            <span style="font-weight:700; color:#0d9488;">Step {step_idx} &bull; {item['category']}</span><br/>
-                            <strong style="font-size:1.1rem;">{item['brand']} — {item['name']}</strong><br/>
-                            <span style="color:#64748b; font-size:0.9rem;">⭐ {item.get('rank', 'N/A')} / 5.0 &nbsp;|&nbsp; 💵 ${item.get('price', 0.0):.2f}</span><br/>
-                            <p style="margin-top:6px; font-size:0.85rem; color:#475569;">
-                                <strong>Key Ingredients:</strong> {', '.join(item.get('ingredients', [])[:8])}...
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("No morning steps selected for current preference.")
-
-            with tab_pm:
-                if res.get("evening_routine"):
-                    for step_idx, item in enumerate(res["evening_routine"], 1):
-                        st.markdown(f"""
-                        <div class="routine-step">
-                            <span style="font-weight:700; color:#3b82f6;">Step {step_idx} &bull; {item['category']}</span><br/>
-                            <strong style="font-size:1.1rem;">{item['brand']} — {item['name']}</strong><br/>
-                            <span style="color:#64748b; font-size:0.9rem;">⭐ {item.get('rank', 'N/A')} / 5.0 &nbsp;|&nbsp; 💵 ${item.get('price', 0.0):.2f}</span><br/>
-                            <p style="margin-top:6px; font-size:0.85rem; color:#475569;">
-                                <strong>Key Ingredients:</strong> {', '.join(item.get('ingredients', [])[:8])}...
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("No evening steps selected for current preference.")
-
-            with tab_safety:
-                st.subheader("Compatibility & Ingredient Review")
-
-                if res.get("avoid_violations"):
-                    st.markdown("**Avoid List Conflicts:**")
-                    for v in res["avoid_violations"]:
-                        st.error(v, icon="🚫")
-
+            with tab_conflicts:
+                # Warnings
                 if res.get("warnings"):
-                    st.markdown("**Evidence-Backed Warnings:**")
+                    st.markdown("#### 🔴 Potential Active Conflicts")
                     for w in res["warnings"]:
                         st.markdown(f"""
-                        <div class="warning-box">
+                        <div class="warning-card">
                             <strong>{w['title']}</strong><br/>
-                            <span>{w['description']}</span>
+                            {w['description']}<br/>
+                            <small style="color:#64748b;">Source: {w['source']}</small>
                         </div>
                         """, unsafe_allow_html=True)
 
+                # Cautions
                 if res.get("cautions"):
-                    st.markdown("**Formulation Cautions:**")
+                    st.markdown("#### 🟡 Compatibility Cautions")
                     for c in res["cautions"]:
                         st.markdown(f"""
-                        <div class="caution-box">
+                        <div class="caution-card">
                             <strong>{c['title']}</strong><br/>
-                            <span>{c['description']}</span>
+                            {c['description']}<br/>
+                            <small style="color:#64748b;">Source: {c['source']}</small>
                         </div>
                         """, unsafe_allow_html=True)
 
-                if not res.get("warnings") and not res.get("cautions") and not res.get("avoid_violations"):
-                    st.success("✅ No conflicting active interactions or avoid violations identified.")
+                # Duplicate actives
+                if res.get("duplicate_actives"):
+                    st.markdown("#### 🟠 Duplicate Active Ingredients")
+                    for d in res["duplicate_actives"]:
+                        st.warning(
+                            f"**{d['active_name']}** detected in: "
+                            f"{', '.join(d['products_involved'])}. {d['explanation']}"
+                        )
 
-                st.markdown("---")
-                st.markdown("**Target Concern Ingredient Matches:**")
-                for bi in res.get("beneficial_insights", []):
-                    st.write(f"- **{bi['concern'].title()}**: {bi['message']}")
+                # Avoid violations
+                if res.get("avoid_violations"):
+                    st.markdown("#### 🚫 Avoid-List Violations")
+                    for av in res["avoid_violations"]:
+                        st.error(
+                            f"**{av.get('brand', '')} {av.get('product_name', '')}**: "
+                            f"Matched '{av.get('avoid_query', '')}' → `{av.get('matched_ingredient', '')}`"
+                        )
+
+                # Insufficient info
+                if res.get("insufficient_info"):
+                    st.markdown("#### ℹ️ Incomplete Data")
+                    for ii in res["insufficient_info"]:
+                        st.markdown(f"""
+                        <div class="info-card">
+                            <strong>{ii.get('product_name', 'Product')}</strong>: {ii.get('issue', '')}<br/>
+                            <small>{ii.get('recommendation', '')}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                # Concern insights
+                if res.get("concern_insights"):
+                    st.markdown("#### 💡 Skin Concern Insights")
+                    for ci in res["concern_insights"]:
+                        icon = "✅" if ci["status"] == "MATCHED" else "ℹ️"
+                        st.info(f"{icon} **{ci['concern']}**: {ci['message']}")
+
+                if not any([res.get("warnings"), res.get("cautions"), res.get("duplicate_actives"),
+                            res.get("avoid_violations")]):
+                    st.success("No active conflicts, cautions, or avoid violations identified among configured rules.")
+
+            with tab_products:
+                st.markdown("#### Ingredient Function Analysis by Product")
+                for prod in res.get("products_analyzed", []):
+                    with st.expander(f"📦 {prod['brand']} — {prod['name']} ({prod['category']}) · {prod['ingredient_count']} ingredients"):
+                        st.caption(f"Source: {prod.get('source', 'Local Dataset')} | Rating: ⭐ {prod.get('rating', 0)} | Price: ${prod.get('price', 0):.2f}")
+                        ings_data = []
+                        for ing in prod.get("ingredients", []):
+                            conc_disp = ing.get("concentration_display", "Unknown / Not provided")
+                            ings_data.append({
+                                "Ingredient": ing["canonical_name"],
+                                "Concentration": conc_disp,
+                                "Function": f"{function_color(ing.get('functional_category', ''))} {ing.get('functional_category', 'Unknown')}",
+                                "Confidence": f"{ing.get('classifier_confidence', 0) * 100:.1f}%"
+                            })
+                        if ings_data:
+                            st.dataframe(pd.DataFrame(ings_data), use_container_width=True, hide_index=True)
+
+            with tab_sequence:
+                st.markdown("#### Recommended Application Sequence")
+                seq = res.get("sequencing_recommendation", {})
+                col_am, col_pm = st.columns(2)
+                with col_am:
+                    st.markdown("**☀️ Morning Order:**")
+                    morning = seq.get("morning", [])
+                    if morning:
+                        for i, p in enumerate(morning, 1):
+                            st.write(f"{i}. [{p['category']}] {p['brand']} — {p['name']}")
+                    else:
+                        st.caption("No morning products in routine.")
+                with col_pm:
+                    st.markdown("**🌙 Evening Order:**")
+                    evening = seq.get("evening", [])
+                    if evening:
+                        for i, p in enumerate(evening, 1):
+                            st.write(f"{i}. [{p['category']}] {p['brand']} — {p['name']}")
+                    else:
+                        st.caption("No evening products in routine.")
 
             with tab_export:
-                st.subheader("Downloadable Routine Report")
-                report_text = f"""# Personalized Skincare Assessment Report
-Generated: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")}
-Model Version: {res.get('model_version_used', 'N/A')}
+                st.markdown("#### Download Routine Assessment Report")
+                report_lines = [
+                    "# Skincare Routine Conflict & Compatibility Report",
+                    f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    f"Primary Status: **{res.get('primary_status')}**",
+                    "",
+                    f"## Products Analyzed ({res.get('total_products', 0)})",
+                ]
+                for p in res.get("products_analyzed", []):
+                    report_lines.append(f"- **[{p['category']}]** {p['brand']} — {p['name']} ({p['ingredient_count']} ingredients, source: {p.get('source', 'Local Dataset')})")
 
-## Profile Summary
-- Skin Type: {res['profile_summary'].get('skin_type')}
-- Primary Concerns: {', '.join(res['profile_summary'].get('concerns', []))}
-- Sensitivity: {res['profile_summary'].get('sensitivity')}
+                report_lines.extend(["", "## Active Conflicts & Cautions"])
+                for w in res.get("warnings", []):
+                    report_lines.append(f"- **[WARNING]** {w['title']}: {w['description']} (Source: {w['source']})")
+                for c in res.get("cautions", []):
+                    report_lines.append(f"- **[CAUTION]** {c['title']}: {c['description']} (Source: {c['source']})")
 
-## Morning Routine
-"""
-                for s in res.get("morning_routine", []):
-                    report_text += f"- [{s['category']}] {s['brand']} - {s['name']} (${s['price']:.2f})\n"
+                if res.get("duplicate_actives"):
+                    report_lines.append("")
+                    report_lines.append("## Duplicate Actives")
+                    for d in res["duplicate_actives"]:
+                        report_lines.append(f"- **{d['active_name']}**: {d['explanation']}")
 
-                report_text += "\n## Evening Routine\n"
-                for s in res.get("evening_routine", []):
-                    report_text += f"- [{s['category']}] {s['brand']} - {s['name']} (${s['price']:.2f})\n"
+                report_lines.extend(["", "## Ingredient Functions by Product"])
+                for p in res.get("products_analyzed", []):
+                    report_lines.append(f"\n### {p['brand']} — {p['name']}")
+                    for ing in p.get("ingredients", []):
+                        report_lines.append(
+                            f"- {ing['canonical_name']}: {ing.get('functional_category', 'Unknown')} "
+                            f"(Concentration: {ing.get('concentration_display', 'Unknown')})"
+                        )
 
-                report_text += f"\n## Clinical & Educational Disclaimer\n{res.get('disclaimer')}\n"
+                report_lines.extend(["", "## Disclaimer", res.get("disclaimer", "")])
+                report_md = "\n".join(report_lines)
 
                 st.download_button(
-                    label="📥 Download Routine Report (.md)",
-                    data=report_text,
+                    "📥 Download Report (.md)",
+                    data=report_md,
                     file_name="skincare_routine_report.md",
                     mime="text/markdown",
                     use_container_width=True
                 )
-                st.code(report_text, language="markdown")
-        else:
-            st.info("👈 Enter your skin parameters and click **Generate & Check Routine** to view your recommendations.")
+                with st.expander("Preview Report"):
+                    st.code(report_md[:3000], language="markdown")
 
-    st.markdown(f"""
-    <div class="disclaimer-banner">
-        <strong>Academic & Educational Disclaimer:</strong> This application is developed for educational and machine learning demonstration purposes.
-        Predictions and rule assessments do not constitute professional dermatological diagnoses, prescriptions, or clinical treatments.
-        Always patch test new cosmetic items and consult a board-certified dermatologist for persistent skin conditions.
+    st.markdown("""
+    <div class="disclaimer-box">
+        <strong>Academic & Educational Disclaimer:</strong> This application is for machine learning demonstration purposes.
+        Conflict assessments are based on configured rules reviewed against published dermatological literature.
+        Absence of a configured conflict does not guarantee individual tolerability.
+        Always patch-test new products and consult a board-certified dermatologist for persistent skin conditions.
     </div>
     """, unsafe_allow_html=True)
 
 
-# ----------------- VIEW 2: PRODUCT CATEGORY CLASSIFIER -----------------
-elif menu == "Product Category Classifier":
-    st.markdown('<div class="main-header">Real-Time Product Classifier</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Directly queries the trained scikit-learn model pipeline served via FastAPI.</div>', unsafe_allow_html=True)
+# ══════════════════════════════════════════════════════════════════════
+# VIEW 2 — PRODUCT CATALOG SEARCH
+# ══════════════════════════════════════════════════════════════════════
+elif nav_option == "📦 Product Catalog Search":
+    st.markdown('<div class="header-title">Cosmetics Product Catalog</div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-subtitle">Search by product name or brand. Three-level matching: Exact → Partial → Fuzzy Levenshtein.</div>', unsafe_allow_html=True)
 
-    col_a, col_b = st.columns([1, 1])
+    col_s1, col_s2, col_s3 = st.columns([3, 2, 1])
+    with col_s1:
+        s_query = st.text_input("Search product name or keyword", value="", placeholder="e.g. Hydrating Cleanser")
+    with col_s2:
+        s_brand = st.text_input("Brand filter (optional)", value="", placeholder="e.g. CeraVe")
+    with col_s3:
+        s_limit = st.number_input("Max results", min_value=1, max_value=50, value=15)
 
-    with col_a:
-        st.subheader("Product Input Details")
-        sample_ingredients = "Water, Glycerin, Dimethicone, Hyaluronic Acid, Niacinamide, Carbomer, Phenoxyethanol"
-        ing_input = st.text_area("INCI Ingredients List", value=sample_ingredients, height=140)
-        p_price = st.number_input("Retail Price ($)", min_value=1.0, max_value=400.0, value=32.0)
-        p_rating = st.slider("Customer Rating (0.0 - 5.0)", min_value=0.0, max_value=5.0, value=4.4, step=0.1)
-        p_skin = st.selectbox("Intended Skin Suitability", ["normal", "dry", "oily", "combination", "sensitive"])
-
-        predict_btn = st.button("🚀 Classify Product Category", use_container_width=True)
-
-    with col_b:
-        st.subheader("Model Inference Output")
-        if predict_btn:
-            payload = {
-                "ingredients_text": ing_input,
-                "price": p_price,
-                "rating": p_rating,
-                "skin_type": p_skin
-            }
-            with st.spinner("Invoking FastAPI /predict endpoint..."):
-                try:
-                    resp = requests.post(f"{API_URL}/predict", json=payload, timeout=5)
-                    if resp.status_code == 200:
-                        pred_data = resp.json()
-                        st.success(f"**Predicted Category:** `{pred_data['predicted_category']}`", icon="🎯")
-                        st.metric("Model Confidence", f"{pred_data['confidence'] * 100:.1f}%")
-                        st.caption(f"Active Model Version: `{pred_data['model_version']}`")
-
-                        st.markdown("#### Class Probability Distribution")
-                        probs_df = pd.DataFrame(
-                            list(pred_data["probabilities"].items()),
-                            columns=["Category", "Probability"]
-                        ).sort_values(by="Probability", ascending=False)
-
-                        st.bar_chart(probs_df.set_index("Category"))
-                    else:
-                        st.error(f"Inference error: {resp.text}")
-                except Exception as e:
-                    st.error(f"Failed to reach FastAPI backend: {e}")
+    if st.button("🔍 Search Catalog", use_container_width=True, type="primary"):
+        if not s_query.strip():
+            st.warning("Please enter a search term.")
         else:
-            st.info("Click 'Classify Product Category' to run real-time inference.")
+            with st.spinner("Searching product database…"):
+                params = {"q": s_query, "limit": s_limit}
+                if s_brand.strip():
+                    params["brand"] = s_brand.strip()
+                resp = api_get("/products/search", params=params)
+
+            if resp is None:
+                st.error("Backend is offline. Start the FastAPI server.")
+            elif not resp.get("results"):
+                st.info(f"No products found matching **{s_query}**. Try a shorter keyword or check spelling.")
+            else:
+                st.write(f"Found **{resp['count']}** product(s) for query: *{s_query}*")
+                for r in resp["results"]:
+                    has_ing = r.get("has_ingredients", False)
+                    skin_suit = r.get("skin_suitability", {})
+                    skin_tags = " · ".join(
+                        key.capitalize() for key in ["combination", "dry", "normal", "oily", "sensitive"]
+                        if skin_suit.get(key, 0) == 1
+                    ) or "N/A"
+                    with st.expander(
+                        f"{'✅' if has_ing else '⚠️'} [{r['match_type']} · {r['match_score']}%] "
+                        f"**{r['brand']}** — {r['name']} *({r['category']})*"
+                    ):
+                        cA, cB, cC = st.columns(3)
+                        cA.metric("Price", f"${r['price']:.2f}")
+                        cB.metric("Rating", f"⭐ {r['rating']}")
+                        cC.metric("Match", f"{r['match_score']}% {r['match_type']}")
+
+                        # Skin suitability
+                        suited = [k.title() for k, v in skin_suit.items() if v == 1]
+                        if suited:
+                            st.caption(f"Suitable for: {', '.join(suited)}")
+
+                        # Ingredient list
+                        st.markdown("**Full Ingredient List:**")
+                        if has_ing:
+                            st.text_area(
+                                "INCI List",
+                                value=r.get("ingredients_raw", ""),
+                                height=100,
+                                key=f"ing_view_{r['product_id']}",
+                                disabled=True,
+                                label_visibility="collapsed"
+                            )
+                        else:
+                            st.info("No ingredient list available for this product. Use Manual Paste in the Routine Checker.")
+
+                        st.caption(f"Data Source: {r.get('source', 'Local Dataset')} | ID: {r['product_id']}")
+
+                        if st.button(f"➕ Add to Routine Basket", key=f"cat_add_{r['product_id']}"):
+                            st.session_state.routine_products.append({
+                                "product_id": r["product_id"],
+                                "name": r["name"],
+                                "brand": r["brand"],
+                                "category": r["category"],
+                                "price": r["price"],
+                                "rating": r["rating"],
+                                "ingredients": r.get("ingredients_raw"),
+                                "source": r.get("source", "Local Dataset")
+                            })
+                            st.success(f"Added **{r['name']}** to your routine basket!")
 
 
-# ----------------- VIEW 3: MODEL & MLOPS LINEAGE -----------------
-elif menu == "Model & MLOps Lineage":
-    st.markdown('<div class="main-header">MLOps Architecture & Model Lineage</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Verification of experiment tracking, evaluation metrics, and promotion gating.</div>', unsafe_allow_html=True)
+# ══════════════════════════════════════════════════════════════════════
+# VIEW 3 — INGREDIENT ANALYSIS (STANDALONE)
+# ══════════════════════════════════════════════════════════════════════
+elif nav_option == "🧪 Ingredient Analysis":
+    st.markdown('<div class="header-title">Ingredient Analysis & Function Classifier</div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-subtitle">Paste a raw ingredient list to parse, normalize synonyms, classify functions, and extract concentrations. Or classify a single ingredient.</div>', unsafe_allow_html=True)
 
-    try:
-        info_resp = requests.get(f"{API_URL}/model-info", timeout=5)
-        model_info = info_resp.json() if info_resp.status_code == 200 else {}
-    except Exception:
-        model_info = {}
+    tab_bulk, tab_single = st.tabs(["📋 Bulk Ingredient List", "🔬 Single Ingredient Lookup"])
 
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    with col_m1:
-        st.metric("Production Version", f"v{model_info.get('current_production_version', 1)}")
-    with col_m2:
-        st.metric("Model Architecture", model_info.get("architecture", "RandomForest"))
-    with col_m3:
-        st.metric("Held-Out Accuracy", f"{model_info.get('metrics', {}).get('accuracy', 0.5467) * 100:.2f}%")
-    with col_m4:
-        st.metric("Macro F1-Score", f"{model_info.get('metrics', {}).get('macro_f1', 0.5536):.4f}")
+    # ── Tab A: Bulk parse ──
+    with tab_bulk:
+        st.markdown("#### Paste Ingredient List (INCI format, comma-separated)")
+        default_ings = (
+            "Aqua (Water), Niacinamide 10%, Pentylene Glycol, Zinc PCA 1%, "
+            "Glycerin, Retinol 0.3%, Salicylic Acid 2%, Sodium Hyaluronate, "
+            "Tocopheryl Acetate, Phenoxyethanol, Centella Asiatica Extract"
+        )
+        raw_text = st.text_area(
+            "Ingredient list",
+            value=default_ings,
+            height=130,
+            placeholder="Paste full INCI ingredient list here...",
+            label_visibility="collapsed"
+        )
 
+        col_b1, col_b2 = st.columns([1, 1])
+        with col_b1:
+            parse_btn = st.button("🔬 Parse & Classify", type="primary", use_container_width=True)
+        with col_b2:
+            if st.button("➕ Add Parsed Product to Routine", use_container_width=True):
+                if raw_text.strip():
+                    brand_i = st.session_state.get("bulk_brand", "Manual Input")
+                    name_i = st.session_state.get("bulk_name", "Pasted Product")
+                    st.session_state.routine_products.append({
+                        "name": name_i, "brand": brand_i,
+                        "category": "Treatment", "price": 0.0, "rating": 4.0,
+                        "ingredients": raw_text, "source": "Manual Text Input"
+                    })
+                    st.success("Product added to routine basket!")
+
+        if parse_btn:
+            if not raw_text.strip():
+                st.warning("Please paste an ingredient list first.")
+            else:
+                with st.spinner("Parsing & classifying ingredients…"):
+                    res = api_post("/ingredients/parse", {"ingredients_text": raw_text}, timeout=20)
+
+                if res is None or "error" in res:
+                    st.error(f"Parse failed: {res.get('error') if res else 'Backend offline'}")
+                else:
+                    st.session_state.parsed_ingredient_results = res
+                    st.success(f"Parsed **{res['ingredient_count']}** ingredients.")
+
+        # Display results
+        if st.session_state.parsed_ingredient_results:
+            res = st.session_state.parsed_ingredient_results
+            st.markdown(f"### Results — {res['ingredient_count']} Ingredients Parsed")
+
+            # Summary metrics
+            ings = res.get("parsed_ingredients", [])
+            has_conc = sum(1 for i in ings if i.get("has_explicit_concentration"))
+            unknown_ct = sum(1 for i in ings if "Unknown" in (i.get("functional_category") or ""))
+            functions = [i.get("functional_category", "") for i in ings if "Unknown" not in (i.get("functional_category") or "")]
+
+            mc1, mc2, mc3, mc4 = st.columns(4)
+            mc1.metric("Total Ingredients", res["ingredient_count"])
+            mc2.metric("With Explicit Concentration", has_conc)
+            mc3.metric("Classified Functions", len(functions))
+            mc4.metric("Unknown / Low-Confidence", unknown_ct)
+
+            st.markdown("---")
+
+            # Function legend
+            st.markdown("**Function Legend:**")
+            legend_cols = st.columns(4)
+            function_list = ["Humectant", "Emollient", "Occlusive", "Exfoliating agent",
+                             "Antioxidant", "Surfactant", "Soothing / Anti-inflammatory", "Sunscreen active"]
+            for i, f in enumerate(function_list):
+                legend_cols[i % 4].caption(f"{function_color(f)} {f}")
+
+            st.markdown("---")
+
+            # Full table
+            rows = []
+            for ing in ings:
+                conc = ing.get("concentration")
+                conc_src = ing.get("concentration_source", "Not provided")
+                rows.append({
+                    "Original Token": ing.get("raw_token", ""),
+                    "Canonical Name": ing.get("canonical_name", ""),
+                    "Concentration": f"{conc}%" if conc is not None else "—",
+                    "Concentration Source": conc_src,
+                    "Function": f"{function_color(ing.get('functional_category', ''))} {ing.get('functional_category', 'Unknown')}",
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+            # Synonym normalization highlights
+            normalized = [(i["raw_token"], i["canonical_name"]) for i in ings
+                          if i["raw_token"].lower().strip() != i["canonical_name"].lower().strip()]
+            if normalized:
+                st.markdown("#### 🔄 Synonym Normalizations Applied")
+                for raw, canon in normalized:
+                    st.caption(f"`{raw}` → **{canon}**")
+
+    # ── Tab B: Single ingredient ──
+    with tab_single:
+        st.markdown("#### Classify a Single Ingredient")
+
+        col_i1, col_i2 = st.columns([1.2, 1])
+        with col_i1:
+            ing_name = st.text_input("Ingredient Name", value="Glycerin", placeholder="e.g. Niacinamide, Salicylic Acid, Squalane")
+
+            # Quick example buttons
+            st.markdown("**Quick examples:**")
+            q_cols = st.columns(4)
+            examples = ["Glycerin", "Salicylic Acid", "Squalane", "Niacinamide",
+                        "Avobenzone", "Dimethicone", "Centella Asiatica", "Ascorbic Acid"]
+            for i, ex in enumerate(examples):
+                if q_cols[i % 4].button(ex, key=f"ex_{i}"):
+                    ing_name = ex
+
+            classify_btn = st.button("🔬 Classify Ingredient", type="primary", use_container_width=True)
+
+        with col_i2:
+            if classify_btn or ing_name:
+                with st.spinner(f"Classifying {ing_name}…"):
+                    res = api_post("/ingredients/classify", {"ingredient_name": ing_name})
+
+                if res and "error" not in res:
+                    func = res.get("predicted_function", "Unknown")
+                    conf = res.get("confidence", 0.0)
+
+                    if "Unknown" in func:
+                        st.warning(f"**{ing_name}** → `Unknown / Insufficient evidence`")
+                        st.caption(f"Confidence ({conf*100:.1f}%) is below threshold. The ingredient may be novel or absent from the training taxonomy.")
+                    else:
+                        st.success(f"**{func}** {function_color(func)}")
+                        st.metric("Model Confidence", f"{conf*100:.1f}%")
+
+                    if res.get("probabilities"):
+                        st.markdown("#### Class Probability Distribution")
+                        prob_df = pd.DataFrame(
+                            list(res["probabilities"].items()),
+                            columns=["Function", "Probability"]
+                        ).sort_values("Probability", ascending=False)
+                        st.bar_chart(prob_df.set_index("Function"))
+
+                    st.markdown("---")
+                    st.caption(
+                        "**Limitation:** The classifier is trained on a curated 77-record INCI taxonomy. "
+                        "Novel ingredients or trade names may return 'Unknown / Insufficient evidence'. "
+                        "Results should be verified against the INCI database for clinical use."
+                    )
+                else:
+                    st.error(f"Classification failed: {res.get('error') if res else 'Backend offline'}")
+
+
+# ══════════════════════════════════════════════════════════════════════
+# VIEW 4 — PACKAGING LABEL OCR
+# ══════════════════════════════════════════════════════════════════════
+elif nav_option == "📸 Packaging Label OCR":
+    st.markdown('<div class="header-title">Packaging Label Image OCR</div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-subtitle">Upload a product packaging photograph. The backend uses Tesseract OCR (Pillow preprocessing). Review and edit extracted text before analysis.</div>', unsafe_allow_html=True)
+
+    col_o1, col_o2 = st.columns([1, 1.2])
+
+    with col_o1:
+        st.subheader("1. Upload Image")
+        uploaded_file = st.file_uploader(
+            "Choose a product packaging image",
+            type=["jpg", "jpeg", "png"],
+            help="Best results with clear, high-contrast text. Max 10MB."
+        )
+
+        if uploaded_file is not None:
+            st.image(uploaded_file, caption=f"Uploaded: {uploaded_file.name}", use_container_width=True)
+            st.caption(f"Size: {len(uploaded_file.getvalue()) / 1024:.1f} KB | Type: {uploaded_file.type}")
+
+            if st.button("🔍 Extract Text via OCR", type="primary", use_container_width=True):
+                with st.spinner("Sending to Tesseract OCR engine…"):
+                    try:
+                        files = {
+                            "file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)
+                        }
+                        resp = requests.post(f"{API_URL}/ocr/extract", files=files, timeout=20)
+                        if resp.status_code == 200:
+                            ocr_data = resp.json()
+                            st.session_state.ocr_last_result = ocr_data
+                            if ocr_data["status"] == "SUCCESS":
+                                st.session_state.ocr_text_buffer = ocr_data["extracted_text"]
+                                st.success("✅ Text extracted. Review and correct on the right.")
+                            elif ocr_data["status"] == "OCR_ENGINE_UNAVAILABLE":
+                                st.warning("⚠️ Tesseract OCR binary not found on this host.")
+                                st.info(ocr_data.get("notes", ""))
+                            else:
+                                st.error(f"OCR Error: {ocr_data.get('error', 'Unknown')}")
+                                st.info(ocr_data.get("notes", ""))
+                        else:
+                            st.error(f"Backend returned error {resp.status_code}: {resp.text[:200]}")
+                    except Exception as e:
+                        st.error(f"Failed to connect to backend: {e}")
+
+    with col_o2:
+        st.subheader("2. Review & Edit Extracted Text")
+        st.caption("Tesseract OCR may misread certain characters (e.g. rn→m). Review carefully before analysis.")
+
+        edited_text = st.text_area(
+            "Extracted ingredient text (edit as needed):",
+            value=st.session_state.ocr_text_buffer,
+            height=220,
+            placeholder="Extracted ingredient text will appear here. You may also paste any ingredient list manually.",
+        )
+
+        # Quick parse preview
+        if edited_text.strip() and st.button("🔬 Preview Parsed Ingredients", use_container_width=True):
+            with st.spinner("Parsing…"):
+                preview_res = api_post("/ingredients/parse", {"ingredients_text": edited_text})
+            if preview_res and "error" not in preview_res:
+                st.success(f"Parsed {preview_res['ingredient_count']} ingredients from OCR text.")
+                rows = [
+                    {"Canonical Name": i["canonical_name"],
+                     "Concentration": f"{i['concentration']}%" if i.get("concentration") else "—",
+                     "Function": i.get("functional_category", "Unknown")}
+                    for i in preview_res.get("parsed_ingredients", [])
+                ]
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.subheader("3. Add to Routine")
+
+        ocr_brand = st.text_input("Brand (optional)", value="OCR Scanned")
+        ocr_name = st.text_input("Product Name (optional)", value="Packaging Scan")
+        ocr_cat = st.selectbox("Category", ["Treatment", "Cleanser", "Moisturizer", "Eye cream", "Sun protect", "Face Mask"])
+
+        if st.button("➕ Add to Routine Basket", type="primary", use_container_width=True):
+            if edited_text.strip():
+                st.session_state.routine_products.append({
+                    "name": ocr_name,
+                    "brand": ocr_brand,
+                    "category": ocr_cat,
+                    "price": 0.0,
+                    "rating": 4.0,
+                    "ingredients": edited_text.strip(),
+                    "source": "Image OCR Ingestion (User Verified)"
+                })
+                st.success(f"Added **{ocr_name}** to routine basket! Go to the Routine Conflict Checker to analyze.")
+            else:
+                st.warning("Ingredient text cannot be empty.")
+
+
+# ══════════════════════════════════════════════════════════════════════
+# VIEW 5 — MLOPS & DRIFT TELEMETRY
+# ══════════════════════════════════════════════════════════════════════
+elif nav_option == "📊 MLOps & Drift Telemetry":
+    st.markdown('<div class="header-title">MLOps Architecture & Drift Telemetry</div>', unsafe_allow_html=True)
+    st.markdown('<div class="header-subtitle">Monitor model versions, training lineage, promotion history, drift indicators, and operational latency.</div>', unsafe_allow_html=True)
+
+    # Pull model info and metrics
+    m_info = api_get("/model-info") or {}
+    metrics_data = api_get("/metrics") or {}
+    drift_data = api_get("/drift") or {}
+    ops_data = metrics_data.get("operational", {})
+
+    # ── Model Versions ──
+    st.subheader("🏷️ Active Model Versions")
+    cm1, cm2, cm3, cm4 = st.columns(4)
+    cm1.metric("Product Classifier Version", f"v{m_info.get('current_production_version', '?')}")
+    cm2.metric("Model Architecture", m_info.get("architecture", "RandomForest"))
+    cm3.metric("Status", m_info.get("status", "UNKNOWN"))
+    cm4.metric("Promoted At", m_info.get("promoted_at", "—")[:10] if m_info.get("promoted_at") else "—")
+
+    prod_metrics = m_info.get("metrics", {})
+    if prod_metrics:
+        cm5, cm6, cm7 = st.columns(3)
+        cm5.metric("Val Accuracy", f"{prod_metrics.get('accuracy', 0)*100:.1f}%")
+        cm6.metric("Macro F1", f"{prod_metrics.get('f1_macro', 0):.4f}")
+        cm7.metric("Weighted F1", f"{prod_metrics.get('f1_weighted', 0):.4f}")
+
+    ing_cls_info = m_info.get("ingredient_classifier", {})
+    if ing_cls_info:
+        st.markdown("---")
+        st.subheader("🧪 Ingredient Function Classifier")
+        ic1, ic2, ic3, ic4 = st.columns(4)
+        ic1.metric("Type", ing_cls_info.get("model_type", "—")[:20])
+        ic2.metric("Classes", len(ing_cls_info.get("supported_classes", [])))
+        ic3.metric("Val Accuracy", f"{ing_cls_info.get('validation_accuracy', 0)*100:.1f}%")
+        ic4.metric("Macro F1", f"{ing_cls_info.get('validation_macro_f1', 0):.4f}")
+
+        if ing_cls_info.get("supported_classes"):
+            with st.expander("Supported Functional Classes"):
+                for cls in ing_cls_info["supported_classes"]:
+                    st.write(f"  {function_color(cls)} **{cls}**")
+
+        if ing_cls_info.get("limitations"):
+            st.info(f"⚠️ **Limitation Note:** {ing_cls_info['limitations']}")
+
+    # ── Drift Dashboard ──
     st.markdown("---")
-    st.subheader("Training vs Baseline Evaluation Metrics")
+    st.subheader("📉 Data & Prediction Drift")
 
-    # Load local metrics and summary if available
-    reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
-    metrics_path = os.path.join(reports_dir, "model_metrics.json")
-    cm_path = os.path.join(reports_dir, "confusion_matrix.png")
-
-    if os.path.exists(metrics_path):
-        with open(metrics_path, "r", encoding="utf-8") as f:
-            full_metrics = json.load(f)
-
-        col_left, col_right = st.columns([1, 1])
-        with col_left:
-            st.markdown("#### Per-Class Performance (Held-out Test)")
-            per_class_df = pd.DataFrame(full_metrics.get("per_class", {})).T
-            st.dataframe(per_class_df, use_container_width=True)
-
-            st.markdown("#### Gating Criteria Compliance")
-            st.markdown("""
-            - **Minimum Accuracy Threshold**: `>= 0.4000` (Passed: `0.5467`)
-            - **Minimum Macro-F1 Threshold**: `>= 0.4000` (Passed: `0.5536`)
-            - **Zero Pipeline Faults**: Validated on single-row and batch inference
-            """)
-
-        with col_right:
-            st.markdown("#### Confusion Matrix")
-            if os.path.exists(cm_path):
-                st.image(cm_path, caption="Held-Out Test Confusion Matrix", use_container_width=True)
-
-    # Operational metrics
-    st.markdown("---")
-    st.subheader("Live Operational Telemetry")
-    try:
-        op_resp = requests.get(f"{API_URL}/metrics", timeout=5)
-        if op_resp.status_code == 200:
-            op_data = op_resp.json()
-            st.json(op_data)
-    except Exception:
-        st.caption("Operational metrics endpoint offline.")
-
-
-# ----------------- VIEW 4: ASSESSMENT HISTORY -----------------
-elif menu == "Assessment History":
-    st.markdown('<div class="main-header">User Assessment History</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Review past session assessments or reset history.</div>', unsafe_allow_html=True)
-
-    if st.button("🗑️ Clear Assessment History"):
-        st.session_state.history = []
-        st.session_state.current_assessment = None
-        st.success("History successfully cleared!")
-
-    if st.session_state.history:
-        for idx, entry in enumerate(reversed(st.session_state.history), 1):
-            with st.expander(f"Assessment #{idx} — {entry['timestamp']} ({entry['skin_type'].upper()}, {entry['concerns']})"):
-                st.write(f"**Routine Preference:** {entry['routine']}")
-                st.json(entry["assessment"])
+    if not drift_data:
+        st.warning("Drift data unavailable — ensure backend is running and at least one inference has been made.")
     else:
-        st.info("No prior assessments recorded in this session.")
+        severity = drift_data.get("drift_severity", "UNKNOWN")
+        sev_color = {"LOW": "🟢", "MODERATE": "🟡", "HIGH": "🔴"}.get(severity, "⚪")
+        st.markdown(f"**Overall Drift Severity:** {sev_color} {severity}")
+
+        vocab = drift_data.get("vocabulary_drift", {})
+        pred = drift_data.get("prediction_drift", {})
+
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("Tokens Observed", vocab.get("total_tokens_observed", 0))
+        d2.metric("Unseen Rate (Cumulative)", f"{vocab.get('cumulative_unseen_rate', 0)*100:.1f}%")
+        d3.metric("Unseen Rate (Recent Window)", f"{vocab.get('recent_unseen_rate', 0)*100:.1f}%")
+        d4.metric("Unique New Terms", vocab.get("unique_unseen_terms", 0))
+
+        dp1, dp2, dp3 = st.columns(3)
+        dp1.metric("Total Classifications", pred.get("total_classifications", 0))
+        dp2.metric("Unknown Predictions", pred.get("unknown_classifications", 0))
+        dp3.metric("Unknown Rate", f"{pred.get('unknown_prediction_rate', 0)*100:.1f}%")
+
+        if vocab.get("sample_unseen_terms"):
+            with st.expander("🔍 Sample Unseen Ingredients (last 10 novel terms)"):
+                for term in vocab["sample_unseen_terms"]:
+                    st.caption(f"• {term}")
+
+        # Class distribution shift
+        class_shift = pred.get("class_distribution_shift", {})
+        if class_shift.get("status") == "COMPUTED" and class_shift.get("details"):
+            st.markdown("**Prediction Distribution vs. Training Reference:**")
+            shift_rows = []
+            for cls, vals in class_shift["details"].items():
+                shift_rows.append({
+                    "Class": cls,
+                    "Training %": f"{vals['reference']*100:.1f}%",
+                    "Live %": f"{vals['live']*100:.1f}%",
+                    "Delta": f"{vals['delta']:+.4f}"
+                })
+            st.dataframe(pd.DataFrame(shift_rows), use_container_width=True, hide_index=True)
+        else:
+            st.caption("Class distribution shift requires at least one /ingredients/classify inference.")
+
+        # Limitation note
+        with st.expander("📌 Interpretation Notes"):
+            st.info(drift_data.get("statistical_limitation_note", ""))
+            st.caption(f"Reference vocabulary size: {drift_data.get('reference_vocab_size', 0)} terms")
+            st.caption(f"Report generated at: {drift_data.get('generated_at', '—')}")
+
+    # ── Latency Summary ──
+    latency_data = drift_data.get("latency_summary", {})
+    if latency_data:
+        st.markdown("---")
+        st.subheader("⏱️ API Latency Summary")
+        lat_rows = []
+        for ep, vals in latency_data.items():
+            lat_rows.append({
+                "Endpoint": ep,
+                "P50 (ms)": vals.get("p50_ms", "—"),
+                "P95 (ms)": vals.get("p95_ms", "—"),
+                "Request Count": vals.get("count", 0)
+            })
+        if lat_rows:
+            st.dataframe(pd.DataFrame(lat_rows), use_container_width=True, hide_index=True)
+
+    # ── Operational Telemetry ──
+    st.markdown("---")
+    st.subheader("⚙️ Operational Telemetry (Raw)")
+    if ops_data:
+        with st.expander("View full operational metrics JSON"):
+            st.json(ops_data)
+    else:
+        st.caption("Operational telemetry not available.")
+
+    # ── MLOps Pipeline diagram ──
+    st.markdown("---")
+    st.subheader("🔄 MLOps Pipeline")
+    st.markdown("""
+    ```
+    Dataset Download (SHA-256 verified)
+      ↓
+    Schema & Bounds Validation
+      ↓
+    Preprocessing (INCI synonym normalization · concentration extraction · stratified split)
+      ↓
+    Feature Engineering (TF-IDF word N-grams + tabular FeatureUnion)
+      ↓
+    Multi-Model Training (LR baseline · Random Forest → MLflow tracked runs)
+      ↓
+    Gated Promotion  [Accuracy ≥ 40% AND Macro-F1 ≥ 40% AND inference smoke test]
+      ↓
+    Versioned Model Registry  (models/model_registry.json · rollback chain)
+      ↓
+    FastAPI Production Serving  (/predict · /check-routine · /ingredients/classify)
+      ↓
+    Drift Monitoring  (unseen rate · unknown prediction rate · latency p50/p95)
+      ↓
+    Rollback on Demand  (python scripts/retrain.py --rollback)
+    ```
+    """)

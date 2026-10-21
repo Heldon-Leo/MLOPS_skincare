@@ -3,10 +3,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Tesseract OCR and standard languages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
@@ -18,6 +21,7 @@ COPY src/ /app/src/
 COPY backend/ /app/backend/
 COPY models/ /app/models/
 COPY data/interim/ /app/data/interim/
+COPY data/processed/ /app/data/processed/
 COPY reports/ /app/reports/
 
 ENV PYTHONPATH=/app

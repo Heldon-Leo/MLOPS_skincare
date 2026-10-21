@@ -1,0 +1,13 @@
+# requirements-dev.txt — Development and testing dependencies
+pytest==9.1.1
+rapidfuzz==3.14.6
+pytesseract==0.3.13
+Pillow==12.3.0
+xgboost==3.2.0
+mlflow==3.17.2
+matplotlib==3.11.2
+scikit-learn==1.9.1
+fastapi==0.143.0
+uvicorn==0.54.0
+streamlit==1.66.0
+requests==2.34.2

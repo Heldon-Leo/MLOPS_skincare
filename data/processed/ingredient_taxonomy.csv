@@ -1,0 +1,78 @@
+ingredient_name,functional_category,description
+glycerin,Humectant,Classic trihydroxy alcohol humectant pulling moisture into the stratum corneum
+sodium hyaluronate,Humectant,Salt of hyaluronic acid with high water binding capacity
+hyaluronic acid,Humectant,Glycosaminoglycan humectant capable of holding up to 1000x its weight in water
+butylene glycol,Humectant,Small organic alcohol acting as humectant and solvent
+propylene glycol,Humectant,Hydrophilic glycol humectant and penetration enhancer
+panthenol,Humectant,Provitamin B5 humectant with wound healing and barrier restoring efficacy
+urea,Humectant,Component of Natural Moisturizing Factor (NMF) with water-retaining properties
+sorbitol,Humectant,Sugar alcohol humectant providing smooth humectancy
+sodium pca,Humectant,Amino acid derivative humectant found natively in human skin NMF
+betaine,Humectant,Osmolyte humectant balancing skin cellular hydration
+aloe barbadensis leaf juice,Humectant,Polysaccharide-rich botanical extract providing hydration
+polyglutamic acid,Humectant,Biopolymer humectant forming high water-retention film on skin
+squalane,Emollient,Hydrogenated biomimetic hydrocarbon lipid that softens skin without clogging pores
+caprylic capric triglyceride,Emollient,Fractionated coconut oil ester providing lightweight emollience
+cetyl alcohol,Emollient,Fatty alcohol acting as non-drying emollient and emulsion stabilizer
+stearyl alcohol,Emollient,Long-chain fatty alcohol providing richness and smoothing texture
+cetearyl alcohol,Emollient,Mixture of cetyl and stearyl fatty alcohols conditioning the skin
+isopropyl myristate,Emollient,Ester emollient enhancing spreadability and product absorption
+jojoba seed oil,Emollient,Liquid wax ester closely resembling natural human sebum lipids
+simmondsia chinensis,Emollient,Botanical jojoba seed oil providing biocompatible emollience
+helianthus annuus seed oil,Emollient,Sunflower oil high in linoleic acid to nourish the skin barrier
+argan oil,Emollient,Nutritive vegetable oil packed with essential fatty acids
+ceramide np,Emollient,Essential barrier lipid replenishing intercellular cement
+ceramide ap,Emollient,Stratum corneum structural lipid maintaining epidermal integrity
+ceramide eop,Emollient,Long-chain ester-linked ceramide critical for skin barrier cohesion
+cholesterol,Emollient,Sterol lipid acting in synergy with ceramides to restore skin barrier
+petrolatum,Occlusive,Purified hydrocarbon mixture reducing transepidermal water loss by up to 98%
+mineral oil,Occlusive,Refined cosmetic-grade hydrocarbon forming a continuous physical barrier
+dimethicone,Occlusive,Silicone polymer forming a breathable hydrophobic seal over stratum corneum
+butyrospermum parkii,Occlusive,Shea butter rich in stearic and oleic fatty acids creating protective coating
+beeswax,Occlusive,Natural ester-wax preventing evaporation of cutaneous moisture
+cera alba,Occlusive,Purified natural beeswax offering protective water-resistant barrier
+microcrystalline wax,Occlusive,Dense hydrocarbon wax sealing moisture inside dry skin areas
+lanolin,Occlusive,Complex lipid wax derived from sheep wool providing semi-permeable occlusion
+paraffin,Occlusive,Solid hydrocarbon forming occlusive film on epidermal surface
+salicylic acid,Exfoliating agent,Lipophilic beta hydroxy acid penetrating sebaceous pores and dissolving keratin plugs
+glycolic acid,Exfoliating agent,Smallest alpha hydroxy acid penetrating deeply to unglue dead corneocytes
+lactic acid,Exfoliating agent,Alpha hydroxy acid that gently exfoliates while providing humectant hydration
+mandelic acid,Exfoliating agent,Large molecular weight AHA ideal for gentle exfoliation on sensitive skin
+gluconolactone,Exfoliating agent,Polyhydroxy acid (PHA) offering ultra-gentle superficial exfoliation and antioxidant power
+lactobionic acid,Exfoliating agent,Bionic acid providing non-irritating exfoliation and water retention
+papain,Exfoliating agent,Proteolytic papaya enzyme dissolving dead surface proteins
+bromelain,Exfoliating agent,Pineapple proteolytic enzyme breaking down keratin bonds without abrasion
+retinol,Exfoliating agent,Vitamin A derivative stimulating epidermal turnover and cellular renewal
+tretinoin,Exfoliating agent,All-trans retinoic acid accelerating keratocyte differentiation and desquamation
+adapalene,Exfoliating agent,Third-generation selective retinoid regulating cellular turnover and comedolysis
+ascorbic acid,Antioxidant,L-ascorbic acid neutralizing reactive oxygen species and aiding collagen synthesis
+tocopherol,Antioxidant,Fat-soluble vitamin E defending cell membrane lipids against peroxidation
+tocopheryl acetate,Antioxidant,Stabilized vitamin E ester protecting formulation and skin against oxidation
+niacinamide,Antioxidant,Vitamin B3 enhancing cellular NAD+ coenzymes and calming inflammation
+ferulic acid,Antioxidant,Plant phenolic antioxidant stabilizing vitamins C and E and doubling photoprotection
+resveratrol,Antioxidant,Polyphenolic stilbenoid antioxidant activating sirtuins and fighting oxidative stress
+camellia sinensis,Antioxidant,Green tea polyphenols rich in EGCG with potent free-radical scavenging
+ubiquinone,Antioxidant,Coenzyme Q10 energizing cellular mitochondria and quenching lipid radicals
+glutathione,Antioxidant,Master tripeptide antioxidant restoring other oxidized antioxidants in cells
+azelaic acid,Antioxidant,Dicarboxylic acid scavenging free radicals while reducing tyrosine activity
+sodium laureth sulfate,Surfactant / Cleanser,Ethoxylated anionic surfactant producing rich lather and solubilizing oils
+cocamidopropyl betaine,Surfactant / Cleanser,Zwitterionic amphoteric surfactant mitigating irritation of harsher detergents
+sodium cocoyl isethionate,Surfactant / Cleanser,Gentle baby-foam surfactant derived from coconut fatty acids
+coco-glucoside,Surfactant / Cleanser,Non-ionic alkyl glucoside surfactant biodegradable and mild on skin
+decyl glucoside,Surfactant / Cleanser,Ultra-mild non-ionic sugar surfactant suitable for sensitive and baby skin
+lauryl glucoside,Surfactant / Cleanser,Non-ionic cleansing surfactant with high viscosity and gentle profile
+sodium lauroyl sarcosinate,Surfactant / Cleanser,Mild amino acid surfactant offering effective lather with low barrier disruption
+centella asiatica,Soothing,Gotu kola botanical rich in madecassoside soothing inflammation and wound repair
+allantoin,Soothing,"Purine derivative moisturizing, desquamating, and soothing irritated skin"
+bisabolol,Soothing,Active sesquiterpene from chamomile attenuating cutaneous erythema
+colloidal oatmeal,Soothing,Beta-glucan rich avenanthramide complex calming itch and eczema flare-ups
+madecassoside,Soothing,Isolated triterpenoid saponin suppressing inflammatory cytokines
+glycyrrhiza glabra,Soothing,Licorice root extract rich in glabridin reducing redness and pigmentation
+zinc oxide,Sunscreen active,Broad-spectrum inorganic physical filter scattering UVA and UVB radiation
+titanium dioxide,Sunscreen active,Mineral physical sunscreen filter providing high UVB and short UVA protection
+avobenzone,Sunscreen active,Oil-soluble organic filter absorbing full-spectrum UVA rays
+octinoxate,Sunscreen active,Organic chemical filter absorbing UVB wavelengths
+octisalate,Sunscreen active,Oil-soluble UVB chemical absorber supplementing sunscreen SPF
+homosalate,Sunscreen active,Organic UVB filter commonly used in high-SPF formulations
+tinosorb s,Sunscreen active,Broad-spectrum photo-stable chemical filter absorbing UVA and UVB
+tinosorb m,Sunscreen active,Hybrid organic particulate filter both absorbing and scattering UV rays

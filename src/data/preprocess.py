@@ -1,104 +1,139 @@
 """
-Preprocess and feature engineering module.
-Performs text normalization, ingredient parsing, token extraction, and train/val/test splits.
+Data Preprocessing & Normalization Module
+Handles:
+1. Punctuation and whitespace normalization.
+2. Cosmetic and INCI synonym mapping.
+3. Ingredient parsing and delimiter splitting.
+4. Active concentration percentage extraction (e.g. 'Niacinamide 10%' -> name: 'niacinamide', percentage: 10.0%).
 """
 
 import os
 import re
-import joblib
+import json
+import unicodedata
+from typing import List, Dict, Any, Tuple, Optional
 import pandas as pd
-import numpy as np
-from typing import Tuple, List, Dict
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RAW_PATH = os.path.join(PROJECT_ROOT, "data", "raw", "cosmetics.csv")
-INTERIM_PATH = os.path.join(PROJECT_ROOT, "data", "interim", "cleaned_cosmetics.csv")
-PROCESSED_PATH = os.path.join(PROJECT_ROOT, "data", "processed")
+SYNONYMS_PATH = os.path.join(PROJECT_ROOT, "data", "interim", "ingredient_synonyms.json")
+
+
+def load_synonyms() -> Dict[str, str]:
+    """Loads synonym mappings from JSON reference file."""
+    if os.path.exists(SYNONYMS_PATH):
+        try:
+            with open(SYNONYMS_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("mappings", {})
+        except Exception:
+            return {}
+    return {}
+
+
+SYNONYMS_MAP = load_synonyms()
 
 
 def normalize_text(text: str) -> str:
-    """Normalizes ingredient text string."""
+    """Normalizes text by lowercasing, unicode normalization, and standardizing whitespace."""
     if not isinstance(text, str):
         return ""
-    # Lowercase
+    # Unicode NFKD normalization (converts characters like é to e)
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("utf-8")
     text = text.lower()
-    # Remove special non-alphanumeric punctuation except commas and dashes
-    text = re.sub(r"[^\w\s,\-]", " ", text)
+    # Replace slashes and semicolons with commas as delimiter markers
+    text = re.sub(r"[/;\|]", ",", text)
+    # Remove non-alphanumeric characters except standard punctuation needed for percentages, hyphens, commas
+    text = re.sub(r"[^\w\s,%.\-]", " ", text)
     # Condense multiple spaces
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
-def parse_ingredients(ingredients_str: str) -> List[str]:
-    """Parses a comma-separated ingredient string into a list of cleaned tokens."""
+def extract_concentration(raw_token: str) -> Tuple[str, Optional[float]]:
+    """
+    Extracts explicit active percentage if explicitly stated in ingredient token.
+    Examples:
+        'Salicylic Acid 2%' -> ('salicylic acid', 2.0)
+        'Niacinamide 10.5 %' -> ('niacinamide', 10.5)
+        'Glycerin' -> ('glycerin', None)
+    """
+    clean = normalize_text(raw_token)
+    match = re.search(r"(\d+(?:\.\d+)?)\s*%", clean)
+    if match:
+        pct = float(match.group(1))
+        # Remove percentage portion from ingredient name
+        name = re.sub(r"(\d+(?:\.\d+)?)\s*%", "", clean).strip()
+        # Clean stray hyphens or punctuation
+        name = re.sub(r"^[\s\-]+|[\s\-]+$", "", name).strip()
+        return name, pct
+    return clean, None
+
+
+def normalize_ingredient_name(raw_name: str) -> str:
+    """Applies canonical synonym mapping and cleans name."""
+    clean_name, _ = extract_concentration(raw_name)
+    clean_name = re.sub(r"\s+", " ", clean_name).strip()
+    # Check if direct match exists in synonym map
+    if clean_name in SYNONYMS_MAP:
+        return SYNONYMS_MAP[clean_name]
+    # Check if a mapped key is a distinct whole word inside the token
+    for syn_key, canonical in SYNONYMS_MAP.items():
+        if re.search(rf"\b{re.escape(syn_key)}\b", clean_name):
+            return canonical
+    return clean_name
+
+
+def parse_ingredients_with_metadata(ingredients_str: str) -> List[Dict[str, Any]]:
+    """
+    Parses comma-separated ingredients into structured list containing:
+    - raw_token: original text fragment
+    - canonical_name: normalized INCI/chemical name
+    - concentration: explicit numeric percentage if stated, else None
+    """
     if not isinstance(ingredients_str, str):
         return []
-    parts = ingredients_str.split(",")
-    cleaned = []
-    for p in parts:
-        token = normalize_text(p)
-        if token and len(token) > 1 and "visit the sephora site" not in token:
-            cleaned.append(token)
-    return cleaned
+
+    # Filter out disclaimer placeholders
+    if "visit the sephora site" in ingredients_str.lower():
+        return []
+
+    raw_tokens = re.split(r",(?![^\(]*\))", ingredients_str)  # Split on commas outside parentheses
+    parsed_items = []
+    seen_canonical = set()
+
+    for token in raw_tokens:
+        token = token.strip()
+        if not token or len(token) < 2:
+            continue
+
+        name_part, concentration = extract_concentration(token)
+        canonical = normalize_ingredient_name(name_part)
+
+        if not canonical or len(canonical) < 2:
+            continue
+
+        parsed_items.append({
+            "raw_token": token,
+            "canonical_name": canonical,
+            "concentration": concentration,
+            "has_explicit_concentration": concentration is not None,
+            "concentration_source": "Explicitly provided by input" if concentration is not None else "Not provided"
+        })
+        seen_canonical.add(canonical)
+
+    return parsed_items
+
+
+def parse_ingredients(ingredients_str: str) -> List[str]:
+    """Legacy compatibility helper returning list of canonical string tokens."""
+    items = parse_ingredients_with_metadata(ingredients_str)
+    return [item["canonical_name"] for item in items]
 
 
 def clean_dataset(raw_df: pd.DataFrame) -> pd.DataFrame:
     """Cleans raw dataframe, handles duplicates and normalizes ingredients."""
     df = raw_df.copy()
-    # Drop exact brand + name duplicates if any
     df = df.drop_duplicates(subset=["Brand", "Name"]).reset_index(drop=True)
-    
-    # Text normalization
     df["Clean_Ingredients"] = df["Ingredients"].apply(normalize_text)
-    
-    # Filter out empty or placeholder ingredients
     df = df[df["Clean_Ingredients"].str.len() > 10].reset_index(drop=True)
-    
     return df
-
-
-def split_and_save_data(df: pd.DataFrame, test_size: float = 0.2, val_size: float = 0.1, random_state: int = 42):
-    """
-    Splits dataset into stratified train, validation, and test sets.
-    Saves sets to data/processed/.
-    """
-    os.makedirs(PROCESSED_PATH, exist_ok=True)
-    
-    # First split train+val vs test
-    train_val, test = train_test_split(
-        df,
-        test_size=test_size,
-        stratify=df["Label"],
-        random_state=random_state
-    )
-    
-    # Split train vs val
-    val_ratio = val_size / (1.0 - test_size)
-    train, val = train_test_split(
-        train_val,
-        test_size=val_ratio,
-        stratify=train_val["Label"],
-        random_state=random_state
-    )
-    
-    train.to_csv(os.path.join(PROCESSED_PATH, "train.csv"), index=False)
-    val.to_csv(os.path.join(PROCESSED_PATH, "val.csv"), index=False)
-    test.to_csv(os.path.join(PROCESSED_PATH, "test.csv"), index=False)
-    
-    print(f"Data split completed:")
-    print(f"  Train: {len(train)} rows")
-    print(f"  Val:   {len(val)} rows")
-    print(f"  Test:  {len(test)} rows")
-    return train, val, test
-
-
-if __name__ == "__main__":
-    print(f"Loading raw dataset from {RAW_PATH}")
-    raw_data = pd.read_csv(RAW_PATH)
-    cleaned = clean_dataset(raw_data)
-    os.makedirs(os.path.dirname(INTERIM_PATH), exist_ok=True)
-    cleaned.to_csv(INTERIM_PATH, index=False)
-    print(f"Saved interim cleaned data: {len(cleaned)} rows")
-    split_and_save_data(cleaned)

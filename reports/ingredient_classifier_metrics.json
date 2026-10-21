@@ -1,0 +1,16 @@
+{
+  "model_type": "LogisticRegression_CharNGram_TFIDF",
+  "supported_classes": [
+    "Antioxidant",
+    "Emollient",
+    "Exfoliating agent",
+    "Humectant",
+    "Occlusive",
+    "Soothing",
+    "Sunscreen active",
+    "Surfactant / Cleanser"
+  ],
+  "sample_count": 77,
+  "validation_accuracy": 0.45,
+  "validation_macro_f1": 0.3359
+}
