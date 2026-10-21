@@ -1,0 +1,17 @@
+{
+  "dataset_name": "Sephora Cosmetics & Ingredients Dataset",
+  "verified_source_url": "https://raw.githubusercontent.com/veeralakrishna/DataCamp-Project-Solutions-Python/master/Comparing%20Cosmetics%20by%20Ingredients/datasets/cosmetics.csv",
+  "secondary_api_source": "https://world.openbeautyfacts.org/api/v2/search?categories_tags_en=face-creams&fields=product_name,brands,ingredients_text,skin_type&page_size=25",
+  "acquisition_timestamp": "2026-10-21T14:45:00Z",
+  "license": "Open Data / MIT Educational Reference",
+  "files": {
+    "cosmetics.csv": {
+      "size_bytes": 1149414,
+      "sha256": "37589163907b20bfdb6f1e3c610b789b35b15e80cce3ef687f0f65a502618857"
+    },
+    "openbeautyfacts_sample.json": {
+      "size_bytes": 16290,
+      "sha256": "101b6bf71ac6df2776407af22050a2d18298fb859920f77d5efd0e35ef8a85e2"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "current_production_version": 1,
+  "models": [
+    {
+      "version": 1,
+      "artifact_file": "model_v1.joblib",
+      "model_architecture": "RandomForest_Classifier",
+      "promoted_at": "2026-10-21T09:25:22.261724Z",
+      "status": "PRODUCTION",
+      "metrics": {
+        "accuracy": 0.5467,
+        "macro_f1": 0.5536,
+        "weighted_f1": 0.5488
+      },
+      "promotion_gate": {
+        "min_accuracy_threshold": 0.4,
+        "min_macro_f1_threshold": 0.4,
+        "passed": true
+      }
+    }
+  ],
+  "rollback_history": []
+}

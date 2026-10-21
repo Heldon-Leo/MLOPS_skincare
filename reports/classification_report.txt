@@ -1,0 +1,14 @@
+=== Model Evaluation: RandomForest_Classifier ===
+
+              precision    recall  f1-score   support
+
+    Cleanser       0.66      0.62      0.64        53
+   Eye cream       0.65      0.49      0.56        41
+   Face Mask       0.54      0.55      0.54        53
+ Moisturizer       0.42      0.60      0.50        58
+ Sun protect       0.67      0.59      0.62        34
+   Treatment       0.51      0.42      0.46        50
+
+    accuracy                           0.55       289
+   macro avg       0.57      0.54      0.55       289
+weighted avg       0.56      0.55      0.55       289

@@ -1,0 +1,51 @@
+{
+  "model_name": "RandomForest_Classifier",
+  "accuracy": 0.5467,
+  "macro_precision": 0.5738,
+  "macro_recall": 0.5449,
+  "macro_f1": 0.5536,
+  "weighted_f1": 0.5488,
+  "per_class": {
+    "Cleanser": {
+      "precision": 0.66,
+      "recall": 0.6226,
+      "f1": 0.6408,
+      "support": 53
+    },
+    "Eye cream": {
+      "precision": 0.6452,
+      "recall": 0.4878,
+      "f1": 0.5556,
+      "support": 41
+    },
+    "Face Mask": {
+      "precision": 0.537,
+      "recall": 0.5472,
+      "f1": 0.5421,
+      "support": 53
+    },
+    "Moisturizer": {
+      "precision": 0.4217,
+      "recall": 0.6034,
+      "f1": 0.4965,
+      "support": 58
+    },
+    "Sun protect": {
+      "precision": 0.6667,
+      "recall": 0.5882,
+      "f1": 0.625,
+      "support": 34
+    },
+    "Treatment": {
+      "precision": 0.5122,
+      "recall": 0.42,
+      "f1": 0.4615,
+      "support": 50
+    }
+  },
+  "class_imbalance_analysis": {
+    "min_support_class": "Sun protect",
+    "max_support_class": "Moisturizer",
+    "support_ratio": 1.71
+  }
+}
