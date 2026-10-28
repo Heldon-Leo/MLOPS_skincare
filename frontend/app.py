@@ -129,7 +129,7 @@ if "parsed_ingredient_results" not in st.session_state:
 # ─────────────────────────── Helpers ───────────────────────────
 def api_get(endpoint: str, params: dict = None, timeout: int = 5):
     try:
-        r = requests.get(f"{API_URL}{endpoint}", params=params, timeout=timeout)
+        r = requests.get(f"{API_URL}{endpoint}", params=params, headers={"Bypass-Tunnel-Reminder": "true", "ngrok-skip-browser-warning": "true"}, timeout=timeout)
         return r.json() if r.status_code == 200 else None
     except Exception:
         return None
@@ -137,7 +137,7 @@ def api_get(endpoint: str, params: dict = None, timeout: int = 5):
 
 def api_post(endpoint: str, payload: dict, timeout: int = 10):
     try:
-        r = requests.post(f"{API_URL}{endpoint}", json=payload, timeout=timeout)
+        r = requests.post(f"{API_URL}{endpoint}", json=payload, headers={"Bypass-Tunnel-Reminder": "true", "ngrok-skip-browser-warning": "true"}, timeout=timeout)
         if r.status_code == 200:
             return r.json()
         return {"error": r.text}
@@ -179,7 +179,7 @@ with st.sidebar:
 
     # API Status
     try:
-        r_ready = requests.get(f"{API_URL}/ready", timeout=2)
+        r_ready = requests.get(f"{API_URL}/ready", headers={"Bypass-Tunnel-Reminder": "true", "ngrok-skip-browser-warning": "true"}, timeout=5)
         if r_ready.status_code == 200:
             st.success("🟢 API: Online", icon="✅")
         else:
