@@ -1,23 +1,20 @@
 """
-Multi-Product Ingredient Conflict and Compatibility Rule Engine
+Multi-Product Ingredient Conflict, Synergy, and Skin Barrier Load Rule Engine
 Evaluates multiple selected products for:
-1. Cross-product active ingredient clashes (e.g., Retinoids + AHAs/BHAs, Benzoyl Peroxide + Retinoids).
-2. Duplicate active ingredients (e.g., salicylic acid in cleanser AND serum).
-3. User-defined ingredient avoid list enforcement.
-4. AM photosensitizing active warnings (e.g. retinoids in morning routines).
-5. Missing concentration and incomplete data identification.
-6. Returns standardized PPT result categories:
-   - NO_CONFIGURED_CONFLICT_FOUND
-   - POTENTIAL_CONFLICT
-   - DUPLICATE_ACTIVE
-   - USER_AVOID_LIST_MATCH
-   - INSUFFICIENT_INFORMATION
+1. Cross-product active ingredient clashes (Retinoids + AHAs/BHAs, Benzoyl Peroxide + Retinoids).
+2. Duplicate active ingredients (e.g. multiple leave-on salicylic acids).
+3. Clinically validated Active Synergies (e.g., Vitamin C + E + Ferulic, Retinol + Ceramides).
+4. Skin Barrier Load Score (0-100) taking into account leave-on vs rinse-off vehicle and active concentration.
+5. User-defined ingredient avoid list enforcement.
+6. AM photosensitizing active warnings.
+7. Standardized result statuses and structured explanations.
 """
 
 import re
 from typing import List, Dict, Any, Optional
 from src.rules.rules_data import (
     INGREDIENT_RULES,
+    ACTIVE_SYNERGIES,
     ROUTINE_STEP_ORDER_AM,
     ROUTINE_STEP_ORDER_PM,
     CONCERN_KEY_INGREDIENTS
@@ -25,11 +22,164 @@ from src.rules.rules_data import (
 from src.data.preprocess import parse_ingredients_with_metadata, normalize_ingredient_name
 from src.models.ingredient_classifier import ingredient_classifier_service
 
-# Recognized potent actives for duplicate checks
+# Recognized potent actives for duplicate checks and irritation scoring
 MONITORED_ACTIVES = [
     "salicylic acid", "glycolic acid", "lactic acid", "retinol", "tretinoin",
     "adapalene", "benzoyl peroxide", "ascorbic acid", "azelaic acid"
 ]
+
+# Base irritation weight per monitored active (on leave-on formulations)
+ACTIVE_IRRITATION_WEIGHTS = {
+    "tretinoin": 35.0,
+    "adapalene": 30.0,
+    "benzoyl peroxide": 25.0,
+    "retinol": 22.0,
+    "glycolic acid": 20.0,
+    "salicylic acid": 18.0,
+    "lactic acid": 14.0,
+    "ascorbic acid": 15.0,
+    "azelaic acid": 12.0
+}
+
+# Product category vehicle multipliers
+# Wash-off products (Cleansers) expose skin to actives for ~60s, yielding far lower irritation load
+CATEGORY_VEHICLE_MULTIPLIERS = {
+    "Cleanser": 0.25,
+    "Face Mask": 0.50,
+    "Treatment": 1.0,
+    "Moisturizer": 0.85,
+    "Eye cream": 0.90,
+    "Sun protect": 0.70
+}
+
+
+def compute_barrier_load(
+    products: List[Dict[str, Any]],
+    clash_count: int,
+    duplicate_count: int
+) -> Dict[str, Any]:
+    """
+    Computes a scientific, formulation-aware Skin Barrier Load Score (0-100).
+    Factors in:
+    - Active chemical potency
+    - Vehicle type (leave-on serum vs rinse-off cleanser)
+    - Position/concentration of active in formula
+    - Buffering ingredients present (ceramides, squalane, panthenol, hyaluronic acid)
+    - Penalty for formulation clashes and duplications
+    """
+    raw_score = 0.0
+    active_load_items = []
+    buffering_count = 0
+
+    buffering_ingredients = ["ceramide", "panthenol", "centella", "squalane", "allantoin", "colloidal oatmeal", "madecassoside"]
+
+    for prod in products:
+        p_name = prod.get("name", "Unnamed")
+        p_cat = prod.get("category", "Treatment")
+        multiplier = CATEGORY_VEHICLE_MULTIPLIERS.get(p_cat, 1.0)
+
+        ingredients = prod.get("ingredients", [])
+        total_ings = len(ingredients)
+
+        for idx, ing in enumerate(ingredients):
+            c_name = ing.get("canonical_name", "").lower()
+            conc = ing.get("concentration")
+
+            # Check for barrier soothing / buffering ingredients
+            if any(b in c_name for b in buffering_ingredients):
+                buffering_count += 1
+
+            # Check for monitored potent active
+            for active_key, base_weight in ACTIVE_IRRITATION_WEIGHTS.items():
+                if active_key in c_name:
+                    # Position weight: earlier ingredients have higher concentration
+                    position_factor = 1.2 if idx < 5 else (1.0 if idx < 12 else 0.7)
+
+                    # Explicit concentration adjustment if provided
+                    conc_factor = 1.0
+                    if conc is not None:
+                        if conc > 5.0:
+                            conc_factor = 1.4
+                        elif conc > 2.0:
+                            conc_factor = 1.2
+                        elif conc < 0.5:
+                            conc_factor = 0.8
+
+                    item_load = base_weight * multiplier * position_factor * conc_factor
+                    raw_score += item_load
+                    active_load_items.append({
+                        "product": p_name,
+                        "category": p_cat,
+                        "active": active_key.title(),
+                        "vehicle_type": "Wash-off (Low contact)" if multiplier < 0.4 else "Leave-on (Full absorption)",
+                        "calculated_points": round(item_load, 1)
+                    })
+                    break
+
+    # Penalty for clashes and duplicates
+    clash_penalty = clash_count * 15.0
+    duplicate_penalty = duplicate_count * 10.0
+    raw_score += (clash_penalty + duplicate_penalty)
+
+    # Mitigation discount from barrier buffering ingredients (max 20 point relief)
+    buffering_discount = min(20.0, buffering_count * 2.5)
+    final_score = max(5.0, raw_score - buffering_discount)
+    final_score = min(100.0, final_score)
+    final_score = round(final_score, 1)
+
+    # Classify barrier load level
+    if final_score <= 35.0:
+        level = "LOW"
+        level_label = "Optimal / Barrier-Friendly"
+        color = "green"
+        summary = "Your routine maintains low chemical irritation potential and respects the skin acid mantle."
+    elif final_score <= 65.0:
+        level = "MODERATE"
+        level_label = "Moderate Exfoliation / Active Load"
+        color = "amber"
+        summary = "Moderate barrier load. Well-tolerated by conditioned skin, but ensure adequate moisturizing."
+    else:
+        level = "HIGH"
+        level_label = "High Stress / Irritation Risk"
+        color = "red"
+        summary = "Heavy active load detected. High risk of erythema, flaking, and lipid barrier depletion."
+
+    return {
+        "score": final_score,
+        "level": level,
+        "level_label": level_label,
+        "color": color,
+        "summary": summary,
+        "buffering_ingredients_detected": buffering_count,
+        "buffering_relief_points": round(buffering_discount, 1),
+        "clash_penalty_applied": clash_penalty,
+        "duplicate_penalty_applied": duplicate_penalty,
+        "contributing_actives": active_load_items
+    }
+
+
+def find_active_synergies(all_canonical_ingredients: List[str]) -> List[Dict[str, Any]]:
+    """Identifies clinically supported positive synergistic combinations present in the routine."""
+    detected_synergies = []
+    flattened_str = " ".join(all_canonical_ingredients).lower()
+
+    for syn in ACTIVE_SYNERGIES:
+        reqs = syn["ingredients_required"]
+        matched_reqs = []
+        for req in reqs:
+            if any(req in ing for ing in all_canonical_ingredients):
+                matched_reqs.append(req)
+
+        if len(matched_reqs) == len(reqs):
+            detected_synergies.append({
+                "synergy_id": syn["synergy_id"],
+                "title": syn["title"],
+                "paired_ingredients": [r.title() for r in reqs],
+                "benefit": syn["benefit"],
+                "source": syn["source"]
+            })
+
+    return detected_synergies
 
 
 def evaluate_multi_product_routine(
@@ -67,7 +217,6 @@ def evaluate_multi_product_routine(
 
         parsed_items = []
         if isinstance(ing_input, list):
-            # Already list of strings or dicts
             for item in ing_input:
                 if isinstance(item, dict):
                     parsed_items.append(item)
@@ -90,13 +239,9 @@ def evaluate_multi_product_routine(
             })
             result_statuses.add("INSUFFICIENT_INFORMATION")
 
-        # Classify ingredient functions where possible
         classified_ingredients = []
-        canonical_names_for_prod = []
-
         for item in parsed_items:
             c_name = item["canonical_name"]
-            canonical_names_for_prod.append(c_name)
             all_flattened_canonical.append(c_name)
 
             # Classify function
@@ -227,7 +372,17 @@ def evaluate_multi_product_routine(
                 "message": f"No recognized high-potency actives explicitly detected for '{concern}'. Consider discussing target treatments with a dermatologist."
             })
 
-    # 5. Routine Sequencing Recommendations
+    # 5. Detect Active Synergies (Novelty Feature)
+    synergies_detected = find_active_synergies(all_flattened_canonical)
+
+    # 6. Compute Formulation-Aware Barrier Load Score (Novelty Feature)
+    barrier_load = compute_barrier_load(
+        products=processed_products,
+        clash_count=len(warnings) + len(cautions),
+        duplicate_count=len(duplicate_actives_list)
+    )
+
+    # 7. Routine Sequencing Recommendations
     sequenced_am = []
     sequenced_pm = []
     category_map = {p["category"]: p for p in processed_products}
@@ -239,11 +394,9 @@ def evaluate_multi_product_routine(
         if cat in category_map:
             sequenced_pm.append(category_map[cat])
 
-    # If no conflict found, set status
     if not warnings and not cautions and not avoid_violations:
         result_statuses.add("NO_CONFIGURED_CONFLICT_FOUND")
 
-    # Primary status summary
     priority_order = [
         "POTENTIAL_CONFLICT",
         "DUPLICATE_ACTIVE",
@@ -264,6 +417,8 @@ def evaluate_multi_product_routine(
         "avoid_violations": avoid_violations,
         "insufficient_info": insufficient_info_notes,
         "concern_insights": concern_insights,
+        "active_synergies": synergies_detected,
+        "barrier_load": barrier_load,
         "sequencing_recommendation": {
             "morning": sequenced_am if routine_time in ["morning", "both"] else [],
             "evening": sequenced_pm if routine_time in ["evening", "both"] else []
@@ -296,8 +451,9 @@ def analyze_routine_compatibility(
         "cautions": res["cautions"],
         "avoid_violations": [f"{v['brand']} {v['product_name']}: contains avoid item '{v['avoid_query']}'" for v in res["avoid_violations"]],
         "beneficial_insights": res["concern_insights"],
+        "synergies": res["active_synergies"],
+        "barrier_load": res["barrier_load"],
         "am_steps_ordered": res["sequencing_recommendation"]["morning"],
         "pm_steps_ordered": res["sequencing_recommendation"]["evening"],
         "disclaimer": res["disclaimer"]
     }
-

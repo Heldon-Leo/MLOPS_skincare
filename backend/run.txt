@@ -1,0 +1,17 @@
+Streamlit Frontend (UI): http://localhost:8501
+FastAPI Backend (API Docs): http://localhost:8000/docs
+Health Check: http://localhost:8000/health
+
+Useful Docker commands:
+Run in background (detached):
+docker compose up -d --build
+
+Stop the containers:
+docker compose down
+
+View logs:
+docker compose logs -f
+
+uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+
+streamlit run frontend/app.py --server.port 8501

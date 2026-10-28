@@ -27,6 +27,12 @@ venv/
 ENV/
 .git
 .gitignore
+.env
+mlruns/
+mlflow.db
+docs/
+tests/
+scripts/
 data/raw/*.csv
 data/raw/*.json
 !data/raw/manifest.json

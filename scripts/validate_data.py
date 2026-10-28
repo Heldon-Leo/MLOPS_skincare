@@ -5,6 +5,7 @@ Validates schemas, data types, null boundaries, and expected distributions.
 
 import os
 import json
+import argparse
 import pandas as pd
 from typing import Dict, Any, Tuple
 
@@ -20,7 +21,7 @@ VALID_LABELS = {
 
 def validate_raw_dataset(filepath: str) -> Tuple[bool, Dict[str, Any]]:
     """
-    Validates the raw cosmetics dataset.
+    Validates a cosmetics dataset CSV.
     Returns (is_valid, validation_report)
     """
     if not os.path.exists(filepath):
@@ -75,8 +76,20 @@ def validate_raw_dataset(filepath: str) -> Tuple[bool, Dict[str, Any]]:
 
 if __name__ == "__main__":
     import sys
-    raw_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "raw", "cosmetics.csv")
-    valid, rep = validate_raw_dataset(raw_path)
+    parser = argparse.ArgumentParser(description="Validate cosmetics dataset")
+    parser.add_argument("--file", "-f", type=str, default=None, help="Path to CSV dataset to validate")
+    args = parser.parse_args()
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    target_path = args.file
+    if not target_path:
+        # Default to raw/cosmetics.csv if exists, else fallback to interim/cleaned_cosmetics.csv
+        raw_path = os.path.join(project_root, "data", "raw", "cosmetics.csv")
+        interim_path = os.path.join(project_root, "data", "interim", "cleaned_cosmetics.csv")
+        target_path = raw_path if os.path.exists(raw_path) else interim_path
+
+    valid, rep = validate_raw_dataset(target_path)
+    print(f"Validating: {target_path}")
     print("Validation Result:", "SUCCESS" if valid else "FAILED")
     print(json.dumps(rep, indent=2))
     if not valid:

@@ -93,6 +93,27 @@ class RuleWarningItem(BaseModel):
     source: str
 
 
+class ActiveSynergyItem(BaseModel):
+    synergy_id: str
+    title: str
+    paired_ingredients: List[str]
+    benefit: str
+    source: str
+
+
+class BarrierLoadDetail(BaseModel):
+    score: float
+    level: str
+    level_label: str
+    color: str
+    summary: str
+    buffering_ingredients_detected: int
+    buffering_relief_points: float
+    clash_penalty_applied: float
+    duplicate_penalty_applied: float
+    contributing_actives: List[Dict[str, Any]]
+
+
 class RoutineCheckResponse(BaseModel):
     primary_status: str
     all_statuses: List[str]
@@ -104,6 +125,8 @@ class RoutineCheckResponse(BaseModel):
     avoid_violations: List[Dict[str, Any]]
     insufficient_info: List[Dict[str, Any]]
     concern_insights: List[Dict[str, Any]]
+    active_synergies: Optional[List[ActiveSynergyItem]] = []
+    barrier_load: Optional[BarrierLoadDetail] = None
     sequencing_recommendation: Dict[str, List[Dict[str, Any]]]
     disclaimer: str
 

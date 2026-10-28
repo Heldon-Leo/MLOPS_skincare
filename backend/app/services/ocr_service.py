@@ -28,17 +28,31 @@ class LabelOCRService:
         """Verifies if tesseract binary is executable on local environment."""
         if not PYTESSERACT_AVAILABLE:
             return False
-        # Common Windows installation locations
-        win_paths = [
+
+        # 1. Check custom path configured via environment variable
+        custom_tesseract = os.getenv("TESSERACT_CMD")
+        if custom_tesseract and os.path.exists(custom_tesseract):
+            pytesseract.pytesseract.tesseract_cmd = custom_tesseract
+            return True
+
+        # 2. Check standard Windows and Unix installation paths
+        standard_paths = [
             r"C:\Program Files\Tesseract-OCR\tesseract.exe",
             r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-            r"C:\Users\Nataraj\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
+            "/usr/bin/tesseract",
+            "/usr/local/bin/tesseract"
         ]
-        for p in win_paths:
+        # Also check local user AppData dynamically
+        local_app_data = os.getenv("LOCALAPPDATA")
+        if local_app_data:
+            standard_paths.append(os.path.join(local_app_data, "Programs", "Tesseract-OCR", "tesseract.exe"))
+
+        for p in standard_paths:
             if os.path.exists(p):
                 pytesseract.pytesseract.tesseract_cmd = p
                 return True
-        # Try default PATH invocation
+
+        # 3. Try default PATH invocation
         try:
             ver = pytesseract.get_tesseract_version()
             return True

@@ -12,9 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python dependencies
+# Install python dependencies with extended timeout and retry tolerance
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=1000 --retries=10 --no-cache-dir -r requirements.txt
 
 # Copy source tree, trained models, data, and configs
 COPY src/ /app/src/
@@ -23,6 +23,12 @@ COPY models/ /app/models/
 COPY data/interim/ /app/data/interim/
 COPY data/processed/ /app/data/processed/
 COPY reports/ /app/reports/
+
+# Create non-root system user
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 ENV PYTHONPATH=/app
 ENV PORT=8000

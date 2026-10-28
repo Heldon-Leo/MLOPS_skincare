@@ -2,7 +2,7 @@
 Ingredient & Product Rules Reference
 Evidence-backed compatibility, cautions, contraindications, and sequencing rules.
 Source: Dermatology literature, CosIng database, and clinical ingredient guides.
-Reviewed: 2026-10-21
+Reviewed: 2026-10-23
 Disclaimer: Educational reference only. Does not replace individualized medical advice.
 """
 
@@ -44,6 +44,45 @@ INGREDIENT_RULES = {
         "description": "Retinoids and strong alpha hydroxy acids increase skin photosensitivity to UV radiation. Best applied in evening routines; daily SPF 30+ is mandatory."
     }
 }
+
+# Clinically recognized ingredient synergy combinations (positive pairings)
+ACTIVE_SYNERGIES = [
+    {
+        "synergy_id": "antioxidant_trio",
+        "title": "Gold Standard Photoprotective Network",
+        "ingredients_required": ["ascorbic acid", "tocopherol", "ferulic acid"],
+        "benefit": "Combining L-Ascorbic Acid (Vitamin C), Alpha-Tocopherol (Vitamin E), and Ferulic Acid boosts chemical photoprotection 8-fold and dynamically regenerates oxidized Vitamin C.",
+        "source": "Duke University Dermatological Study (Pinnell et al., J Invest Dermatol)"
+    },
+    {
+        "synergy_id": "barrier_buffering",
+        "title": "Retinoid Barrier-Buffering Synergy",
+        "ingredients_required": ["retinol", "ceramide"],
+        "benefit": "Ceramides strengthen intercellular lipids, significantly mitigating retinoid-induced trans-epidermal water loss (TEWL), flaking, and erythema.",
+        "source": "Clinical & Aesthetic Dermatology Journal"
+    },
+    {
+        "synergy_id": "sebum_pore_decongest",
+        "title": "Sebum Regulating & Pore Clarifying Synergy",
+        "ingredients_required": ["niacinamide", "salicylic acid"],
+        "benefit": "Salicylic Acid (lipophilic BHA) penetrates and decongests sebaceous follicles, while Niacinamide downregulates sebum excretion and soothes micro-inflammation.",
+        "source": "British Journal of Dermatology"
+    },
+    {
+        "synergy_id": "multi_humectant_boost",
+        "title": "Multi-Depth Hydration Synergy",
+        "ingredients_required": ["hyaluronic acid", "glycerin"],
+        "benefit": "Glycerin (low MW penetrating humectant) and Hyaluronic Acid (surface moisture binder) work synergistically across distinct epidermal strata for sustained hydration.",
+        "source": "Cosmetic Dermatology Research"
+    },
+    {
+        "synergy_id": "cica_soothing_synergy",
+        "title": "Anti-Inflammatory Barrier Recovery Synergy",
+        "ingredients_required": ["centella asiatica", "panthenol"],
+        "benefit": "Madecassoside/Centella stimulates collagen type I synthesis while Panthenol accelerates epithelial repair and calms irritation.",
+        "source": "Phytomedicine & Skin Pharmacology"
+    }
+]
 
 # Standard routine sequence order (from lightest consistency / first step to heaviest / final step)
 ROUTINE_STEP_ORDER_AM = [

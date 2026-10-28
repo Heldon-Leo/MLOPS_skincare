@@ -90,6 +90,24 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     border: 1px solid #e2e8f0; padding: 14px;
     font-size: 0.83rem; color: #64748b; margin-top: 24px;
 }
+
+.synergy-card {
+    background: #f0fdf4; border-left: 4px solid #10b981;
+    padding: 12px 16px; border-radius: 6px; margin-bottom: 10px;
+}
+.barrier-card-green {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+    padding: 14px 18px; margin-bottom: 15px;
+}
+.barrier-card-amber {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    padding: 14px 18px; margin-bottom: 15px;
+}
+.barrier-card-red {
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+    padding: 14px 18px; margin-bottom: 15px;
+}
+
 .metric-block {
     background: #f0f9ff; border-radius: 8px;
     padding: 12px 16px; margin-bottom: 8px;
@@ -345,10 +363,32 @@ if nav_option == "🔍 Routine Conflict Checker":
             res = st.session_state.last_analysis
             status = res.get("primary_status", "NO_CONFIGURED_CONFLICT_FOUND")
             render_status_badge(status)
-            st.write(f"Analyzed **{res.get('total_products', 0)}** formulations with **{sum(p['ingredient_count'] for p in res.get('products_analyzed', []))}** total ingredients.")
 
-            tab_conflicts, tab_products, tab_sequence, tab_export = st.tabs([
-                "⚠️ Conflicts & Actives", "🧴 Product Ingredients", "⏱️ Sequencing", "📄 Export Report"
+            # --- Novelty UI: Formulation-Aware Skin Barrier Load Meter ---
+            b_load = res.get('barrier_load', {})
+            if b_load:
+                b_score = b_load.get('score', 0)
+                b_level = b_load.get('level', 'LOW')
+                b_label = b_load.get('level_label', '')
+                b_summary = b_load.get('summary', '')
+                card_class = 'barrier-card-green' if b_level == 'LOW' else ('barrier-card-amber' if b_level == 'MODERATE' else 'barrier-card-red')
+                badge_emoji = '🛡️' if b_level == 'LOW' else ('⚠️' if b_level == 'MODERATE' else '🚨')
+                
+                st.markdown(f'''
+                <div class="{card_class}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-weight: 700; font-size: 1.05rem;">{badge_emoji} Skin Barrier Load Index</span>
+                        <span style="font-weight: 800; font-size: 1.25rem;">{b_score} / 100 ({b_label})</span>
+                    </div>
+                    <p style="margin: 0; font-size: 0.88rem; color: #334155;">{b_summary}</p>
+                </div>
+                ''', unsafe_allow_html=True)
+                st.progress(min(1.0, b_score / 100.0))
+
+            st.caption(f"Analyzed {res.get('total_products', 0)} formulations · {sum(p['ingredient_count'] for p in res.get('products_analyzed', []))} ingredients")
+
+            tab_conflicts, tab_synergies, tab_barrier, tab_products, tab_sequence, tab_export = st.tabs([
+                "⚠️ Conflicts & Actives", "✨ Clinical Synergies", "🛡️ Barrier Load Analysis", "🧴 Product Ingredients", "⏱️ Sequencing", "📄 Export Report"
             ])
 
             with tab_conflicts:
@@ -416,6 +456,48 @@ if nav_option == "🔍 Routine Conflict Checker":
                             res.get("avoid_violations")]):
                     st.success("No active conflicts, cautions, or avoid violations identified among configured rules.")
 
+            with tab_synergies:
+                st.markdown("#### ✨ Clinically Validated Active Synergies")
+                st.caption("Detects beneficial multi-ingredient pairings supported by dermatology literature (e.g. photoprotection, barrier buffering).")
+                synergies = res.get('active_synergies', [])
+                if synergies:
+                    for s in synergies:
+                        st.markdown(f'''
+                        <div class="synergy-card">
+                            <div style="font-weight: 700; color: #065f46; font-size: 0.98rem;">🌟 {s['title']}</div>
+                            <div style="margin: 4px 0 6px 0; font-size: 0.88rem; color: #1f2937;">
+                                <strong>Active Ingredients:</strong> {', '.join(s['paired_ingredients'])}<br/>
+                                {s['benefit']}
+                            </div>
+                            <small style="color: #047857;">Evidence: {s['source']}</small>
+                        </div>
+                        ''', unsafe_allow_html=True)
+                else:
+                    st.info("No clinical synergy pairs detected among the current products. Try adding pairings like Vitamin C + E + Ferulic or Retinol + Ceramides!")
+
+            with tab_barrier:
+                st.markdown("#### 🛡️ Formulation-Aware Barrier Load Breakdown")
+                st.caption("Novelty Engine: Weights active chemical potency, leave-on vs rinse-off vehicle, ingredient positions, and soothing buffers.")
+                b_info = res.get('barrier_load', {})
+                if b_info:
+                    bc1, bc2, bc3, bc4 = st.columns(4)
+                    bc1.metric("Irritation Score", f"{b_info.get('score', 0)} / 100")
+                    bc2.metric("Active Stress Level", b_info.get('level', 'LOW'))
+                    bc3.metric("Buffering Actives", b_info.get('buffering_ingredients_detected', 0))
+                    bc4.metric("Barrier Relief Points", f"-{b_info.get('buffering_relief_points', 0)} pts")
+
+                    st.markdown("**Contributing Active Loads by Vehicle & Potency:**")
+                    contribs = b_info.get('contributing_actives', [])
+                    if contribs:
+                        df_contribs = pd.DataFrame(contribs)
+                        df_contribs.columns = ["Product", "Category", "Active Chemical", "Vehicle Type", "Irritation Points"]
+                        st.dataframe(df_contribs, use_container_width=True, hide_index=True)
+                    else:
+                        st.success("No harsh monitored actives detected in this routine.")
+
+                    if b_info.get('clash_penalty_applied', 0) > 0 or b_info.get('duplicate_penalty_applied', 0) > 0:
+                        st.warning(f"⚠️ Penalties applied: +{b_info.get('clash_penalty_applied', 0)} pts for formulation clashes, +{b_info.get('duplicate_penalty_applied', 0)} pts for duplicate actives.")
+
             with tab_products:
                 st.markdown("#### Ingredient Function Analysis by Product")
                 for prod in res.get("products_analyzed", []):
@@ -465,6 +547,21 @@ if nav_option == "🔍 Routine Conflict Checker":
                 ]
                 for p in res.get("products_analyzed", []):
                     report_lines.append(f"- **[{p['category']}]** {p['brand']} — {p['name']} ({p['ingredient_count']} ingredients, source: {p.get('source', 'Local Dataset')})")
+
+                # Include Novel Barrier Load & Synergies in exported report
+                b_ld = res.get('barrier_load', {})
+                if b_ld:
+                    report_lines.extend([
+                        "",
+                        f"## Skin Barrier Load Score: {b_ld.get('score', 0)} / 100 ({b_ld.get('level_label', '')})",
+                        f"> {b_ld.get('summary', '')}",
+                        f"- Buffering soothing ingredients detected: {b_ld.get('buffering_ingredients_detected', 0)} (-{b_ld.get('buffering_relief_points', 0)} relief points)"
+                    ])
+
+                if res.get('active_synergies'):
+                    report_lines.extend(["", "## Clinically Validated Active Synergies"])
+                    for syn in res['active_synergies']:
+                        report_lines.append(f"- **[SYNERGY] {syn['title']}**: {syn['benefit']} (Source: {syn['source']})")
 
                 report_lines.extend(["", "## Active Conflicts & Cautions"])
                 for w in res.get("warnings", []):
